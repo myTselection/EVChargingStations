@@ -1,0 +1,5 @@
+{
+  "name": "EV Charging Stations",
+  "render_readme": true,
+  "country": ["BE","FR","NL","IT","DE","LU","ES"]
+}
