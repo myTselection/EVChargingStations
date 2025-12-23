@@ -1875,14 +1875,13 @@ class ComponentSession(object):
 
 #manual tests - enable debug logging
 
-_LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.DEBUG)
-if not logging.getLogger().hasHandlers():
-    logging.basicConfig(level=logging.DEBUG)
-_LOGGER.debug("Debug logging is now enabled.")
+# _LOGGER = logging.getLogger(__name__)
+# _LOGGER.setLevel(logging.DEBUG)
+# if not logging.getLogger().hasHandlers():
+#     logging.basicConfig(level=logging.DEBUG)
+# _LOGGER.debug("Debug logging is now enabled.")
 
 # session = ComponentSession("GEO_API_KEY")
-session = ComponentSession("24e1537040e040b19ce213779d8b9e96")
 
 #LOCAL TESTS
 
@@ -1934,9 +1933,9 @@ session = ComponentSession("24e1537040e040b19ce213779d8b9e96")
 #locationinfo= session.convertLocationBoundingBox("09040", "IT", "Settimo San Pietro")
 #print(session.getFuelPrices("09040", "IT", "Settimo San Pietro", locationinfo, FuelType.SUPER95, False))
 # test NL
-locationinfo= session.convertLocationBoundingBox("2627AR", "NL", "Delft")
-if len(locationinfo) > 0: 
-    print(session.getFuelPrices("2627AR", "NL", "Delft", locationinfo, FuelType.ELECTRIC_T2, False))
+# locationinfo= session.convertLocationBoundingBox("2627AR", "NL", "Delft")
+# if len(locationinfo) > 0: 
+#     print(session.getFuelPrices("2627AR", "NL", "Delft", locationinfo, FuelType.ELECTRIC_T2, False))
     # print(session.getFuelPrices("2627AR", "NL", "Delft", locationinfo, FuelType.DIESEL, False))
     # print(session.getStationInfo("2627AR", "NL", FuelType.DIESEL, "Delft", 0, "", False))
             
