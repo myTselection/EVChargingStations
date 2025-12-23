@@ -9,7 +9,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.typing import ConfigType
-from .utils import check_settings, FuelType, ComponentSession
+from .utils import check_settings, ConnectorTypes, ComponentSession
 
 # Removed reading from manifest file
 
@@ -22,8 +22,8 @@ from .utils import check_settings, FuelType, ComponentSession
 # VERSION = manifest_data.get("version")
 # ISSUEURL = manifest_data.get("issue_tracker")
 
-DOMAIN =  "carbu_com"
-NAME =  "Carbu.com"
+DOMAIN =  "EVChargingStations"
+NAME =  "EV Charging Station"
 PLATFORMS = [Platform.SENSOR]
 
 STARTUP = """
@@ -91,7 +91,7 @@ def register_services(hass, config_entry):
         
     async def handle_get_lowest_fuel_price(call):
         """Handle the service call."""
-        fuel_type = getattr(FuelType, call.data.get('fuel_type').upper(), None)
+        fuel_type = getattr(ConnectorTypes, call.data.get('fuel_type').upper(), None)
         country = call.data.get('country')
         postalcode = call.data.get('postalcode')
         town = call.data.get('town','')
@@ -115,7 +115,7 @@ def register_services(hass, config_entry):
         
     async def handle_get_lowest_fuel_price_coor(call):
         """Handle the service call."""
-        fuel_type = getattr(FuelType, call.data.get('fuel_type').upper(), None)
+        fuel_type = getattr(ConnectorTypes, call.data.get('fuel_type').upper(), None)
         latitude = call.data.get('latitude')
         longitude = call.data.get('longitude')
         max_distance = call.data.get('max_distance')
@@ -142,7 +142,7 @@ def register_services(hass, config_entry):
         """Handle the service call."""
         country = call.data.get('country')
         to_country = call.data.get('to_country', country)
-        fuel_type = getattr(FuelType, call.data.get('fuel_type').upper(), None)
+        fuel_type = getattr(ConnectorTypes, call.data.get('fuel_type').upper(), None)
         filter = call.data.get('filter','')
         from_postalcode = call.data.get('from_postalcode')
         to_postalcode = call.data.get('to_postalcode')
@@ -165,7 +165,7 @@ def register_services(hass, config_entry):
         
     async def handle_get_lowest_fuel_price_on_route_coor(call):
         """Handle the service call."""
-        fuel_type = getattr(FuelType, call.data.get('fuel_type').upper(), None)
+        fuel_type = getattr(ConnectorTypes, call.data.get('fuel_type').upper(), None)
         filter = call.data.get('filter','')
         from_latitude = call.data.get('from_latitude')
         from_longitude = call.data.get('from_longitude')

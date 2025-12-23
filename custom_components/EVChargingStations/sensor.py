@@ -33,12 +33,12 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Required("postalcode"): cv.string,
         vol.Optional("town"): cv.string,
         vol.Optional("filter"): cv.string,
-        vol.Optional(FuelType.SUPER95.name_lowercase, default=True): cv.boolean,
-        vol.Optional(FuelType.SUPER98.name_lowercase, default=True): cv.boolean,
-        vol.Optional(FuelType.DIESEL.name_lowercase, default=True): cv.boolean,
-        vol.Optional(FuelType.LPG.name_lowercase, default=True): cv.boolean,
-        vol.Optional(FuelType.OILSTD.name_lowercase, default=True): cv.boolean,
-        vol.Optional(FuelType.OILEXTRA.name_lowercase, default=True): cv.boolean,
+        vol.Optional(ConnectorTypes.SUPER95.name_lowercase, default=True): cv.boolean,
+        vol.Optional(ConnectorTypes.SUPER98.name_lowercase, default=True): cv.boolean,
+        vol.Optional(ConnectorTypes.DIESEL.name_lowercase, default=True): cv.boolean,
+        vol.Optional(ConnectorTypes.LPG.name_lowercase, default=True): cv.boolean,
+        vol.Optional(ConnectorTypes.OILSTD.name_lowercase, default=True): cv.boolean,
+        vol.Optional(ConnectorTypes.OILEXTRA.name_lowercase, default=True): cv.boolean,
         vol.Optional("quantity", default=1000): cv.positive_int,
     }
 )
@@ -55,13 +55,13 @@ async def dry_setup(hass, config_entry, async_add_devices):
     filter = config.get("filter")
     individualstation = config.get("individualstation", False)
     station = config.get("station","")
-    super95 = config.get(FuelType.SUPER95.name_lowercase)
-    super95_e5 = config.get(FuelType.SUPER95_E5.name_lowercase)
-    super98 = config.get(FuelType.SUPER98.name_lowercase)
-    diesel = config.get(FuelType.DIESEL.name_lowercase)
-    lpg = config.get(FuelType.LPG.name_lowercase)
-    oilstd = config.get(FuelType.OILSTD.name_lowercase)
-    oilextra = config.get(FuelType.OILEXTRA.name_lowercase)
+    super95 = config.get(ConnectorTypes.SUPER95.name_lowercase)
+    super95_e5 = config.get(ConnectorTypes.SUPER95_E5.name_lowercase)
+    super98 = config.get(ConnectorTypes.SUPER98.name_lowercase)
+    diesel = config.get(ConnectorTypes.DIESEL.name_lowercase)
+    lpg = config.get(ConnectorTypes.LPG.name_lowercase)
+    oilstd = config.get(ConnectorTypes.OILSTD.name_lowercase)
+    oilextra = config.get(ConnectorTypes.OILEXTRA.name_lowercase)
     quantity = config.get("quantity")
 
     check_settings(config, hass)
@@ -89,150 +89,150 @@ async def dry_setup(hass, config_entry, async_add_devices):
     # _LOGGER.debug(f"postalcode {postalcode} station: {station} individualstation {individualstation}")
 
     if super95:
-        sensorSuper95 = ComponentPriceSensor(componentData, FuelType.SUPER95, postalcode, False, 0, station)
+        sensorSuper95 = ComponentPriceSensor(componentData, ConnectorTypes.SUPER95, postalcode, False, 0, station)
         # await sensorSuper95.async_update()
         sensors.append(sensorSuper95)
         
         if not individualstation:
-                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.SUPER95, postalcode, 5)
+                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER95, postalcode, 5)
                 # await sensorSuper95Neigh.async_update()
                 sensors.append(sensorSuper95Neigh)
                 
-                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.SUPER95, postalcode, 10)
+                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER95, postalcode, 10)
                 # await sensorSuper95Neigh.async_update()
                 sensors.append(sensorSuper95Neigh)
 
 
         if country.lower() in ['be','fr','lu']:
-            sensorSuper95Prediction = ComponentFuelPredictionSensor(componentData, FuelType.SUPER95_PREDICTION)
+            sensorSuper95Prediction = ComponentFuelPredictionSensor(componentData, ConnectorTypes.SUPER95_PREDICTION)
             appendUniqueSensor(sensorSuper95Prediction)
-            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, FuelType.SUPER95_OFFICIAL_E10)
+            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER95_OFFICIAL_E10)
             appendUniqueSensor(sensorSuper95Official)
 
         if country.lower() in ['nl']:
-            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, FuelType.SUPER95_OFFICIAL_E10)
+            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER95_OFFICIAL_E10)
             appendUniqueSensor(sensorSuper95Official)
 
     if super95_e5:
-        sensorSuper95_e5 = ComponentPriceSensor(componentData, FuelType.SUPER95_E5, postalcode, False, 0, station)
+        sensorSuper95_e5 = ComponentPriceSensor(componentData, ConnectorTypes.SUPER95_E5, postalcode, False, 0, station)
         # await sensorSuper95.async_update()
         sensors.append(sensorSuper95_e5)
         
         if not individualstation:
-                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.SUPER95_E5, postalcode, 5)
+                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER95_E5, postalcode, 5)
                 # await sensorSuper95Neigh.async_update()
                 sensors.append(sensorSuper95Neigh)
                 
-                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.SUPER95_E5, postalcode, 10)
+                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER95_E5, postalcode, 10)
                 # await sensorSuper95Neigh.async_update()
                 sensors.append(sensorSuper95Neigh)
 
         if country.lower() in ['be','fr','lu'] and not(super95):
-            sensorSuper95Prediction = ComponentFuelPredictionSensor(componentData, FuelType.SUPER95_PREDICTION)
+            sensorSuper95Prediction = ComponentFuelPredictionSensor(componentData, ConnectorTypes.SUPER95_PREDICTION)
             appendUniqueSensor(sensorSuper95Prediction)
-            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, FuelType.SUPER95_OFFICIAL_E10)
+            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER95_OFFICIAL_E10)
             appendUniqueSensor(sensorSuper95Official)
 
         if country.lower() in ['nl'] and not(super95):
-            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, FuelType.SUPER95_OFFICIAL_E10)
+            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER95_OFFICIAL_E10)
             appendUniqueSensor(sensorSuper95Official)
     
     
     if super98:
-        sensorSuper98 = ComponentPriceSensor(componentData, FuelType.SUPER98, postalcode, False, 0, station)
+        sensorSuper98 = ComponentPriceSensor(componentData, ConnectorTypes.SUPER98, postalcode, False, 0, station)
         # await sensorSuper95.async_update()
         sensors.append(sensorSuper98)
         
         if not individualstation:
-            sensorSuper98Neigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.SUPER98, postalcode, 5)
+            sensorSuper98Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER98, postalcode, 5)
             # await sensorSuper95Neigh.async_update()
             sensors.append(sensorSuper98Neigh)
             
-            sensorSuper98Neigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.SUPER98, postalcode, 10)
+            sensorSuper98Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER98, postalcode, 10)
             # await sensorSuper95Neigh.async_update()
             sensors.append(sensorSuper98Neigh)
 
         if country.lower() in ['be','fr','lu']:
-            sensorSuper98OfficialE10 = ComponentFuelOfficialSensor(componentData, FuelType.SUPER98_OFFICIAL_E10)
+            sensorSuper98OfficialE10 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER98_OFFICIAL_E10)
             appendUniqueSensor(sensorSuper98OfficialE10)
             
-            sensorSuper98OfficialE5 = ComponentFuelOfficialSensor(componentData, FuelType.SUPER98_OFFICIAL_E5)
+            sensorSuper98OfficialE5 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER98_OFFICIAL_E5)
             appendUniqueSensor(sensorSuper98OfficialE5)
 
         if country.lower() in ['nl']:
-            sensorSuper98OfficialE5 = ComponentFuelOfficialSensor(componentData, FuelType.SUPER98_OFFICIAL_E5)
+            sensorSuper98OfficialE5 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER98_OFFICIAL_E5)
             appendUniqueSensor(sensorSuper98OfficialE5)
 
     if diesel:
-        sensorDiesel = ComponentPriceSensor(componentData, FuelType.DIESEL, postalcode, False, 0, station)
+        sensorDiesel = ComponentPriceSensor(componentData, ConnectorTypes.DIESEL, postalcode, False, 0, station)
         # await sensorDiesel.async_update()
         sensors.append(sensorDiesel)
         
         if not individualstation:
-            sensorDieselNeigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.DIESEL, postalcode, 5)
+            sensorDieselNeigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.DIESEL, postalcode, 5)
             # await sensorDieselNeigh.async_update()
             sensors.append(sensorDieselNeigh)
             
-            sensorDieselNeigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.DIESEL, postalcode, 10)
+            sensorDieselNeigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.DIESEL, postalcode, 10)
             # await sensorDieselNeigh.async_update()
             sensors.append(sensorDieselNeigh)
         
         if country.lower() in ['be','fr','lu']:
-            sensorDieselPrediction = ComponentFuelPredictionSensor(componentData, FuelType.DIESEL_Prediction)
+            sensorDieselPrediction = ComponentFuelPredictionSensor(componentData, ConnectorTypes.DIESEL_Prediction)
             # await sensorDieselPrediction.async_update()
             appendUniqueSensor(sensorDieselPrediction)
 
-            sensorDieselOfficialB10 = ComponentFuelOfficialSensor(componentData, FuelType.DIESEL_OFFICIAL_B10)            
+            sensorDieselOfficialB10 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.DIESEL_OFFICIAL_B10)            
             appendUniqueSensor(sensorDieselOfficialB10)
 
-            sensorDieselOfficialB7 = ComponentFuelOfficialSensor(componentData, FuelType.DIESEL_OFFICIAL_B7)            
+            sensorDieselOfficialB7 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.DIESEL_OFFICIAL_B7)            
             appendUniqueSensor(sensorDieselOfficialB7)
 
-            sensorDieselOfficialXTL = ComponentFuelOfficialSensor(componentData, FuelType.DIESEL_OFFICIAL_XTL)            
+            sensorDieselOfficialXTL = ComponentFuelOfficialSensor(componentData, ConnectorTypes.DIESEL_OFFICIAL_XTL)            
             appendUniqueSensor(sensorDieselOfficialXTL)
         
         if country.lower() in ['nl']:
-            sensorDieselOfficialB7 = ComponentFuelOfficialSensor(componentData, FuelType.DIESEL_OFFICIAL_B7)
+            sensorDieselOfficialB7 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.DIESEL_OFFICIAL_B7)
             appendUniqueSensor(sensorDieselOfficialB7)
 
     if lpg:
-        sensorLpg = ComponentPriceSensor(componentData, FuelType.LPG, postalcode, False, 0, station)
+        sensorLpg = ComponentPriceSensor(componentData, ConnectorTypes.LPG, postalcode, False, 0, station)
         # await sensorDiesel.async_update()
         sensors.append(sensorLpg)
         
         if not individualstation:
-            sensorLpgNeigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.LPG, postalcode, 5)
+            sensorLpgNeigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.LPG, postalcode, 5)
             # await sensorLpgNeigh.async_update()
             sensors.append(sensorLpgNeigh)
             
-            sensorLpgNeigh = ComponentPriceNeighborhoodSensor(componentData, FuelType.LPG, postalcode, 10)
+            sensorLpgNeigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.LPG, postalcode, 10)
             # await sensorLpgNeigh.async_update()
             sensors.append(sensorLpgNeigh)
 
         
         if country.lower() in ['be','fr','lu']:
-            sensorLpgOfficial = ComponentFuelOfficialSensor(componentData, FuelType.LPG_OFFICIAL)
+            sensorLpgOfficial = ComponentFuelOfficialSensor(componentData, ConnectorTypes.LPG_OFFICIAL)
             appendUniqueSensor(sensorLpgOfficial)
 
         if country.lower() in ['nl']:
-            sensorLpgOfficial = ComponentFuelOfficialSensor(componentData, FuelType.LPG_OFFICIAL)
+            sensorLpgOfficial = ComponentFuelOfficialSensor(componentData, ConnectorTypes.LPG_OFFICIAL)
             appendUniqueSensor(sensorLpgOfficial)
         
     if oilstd and country.lower() in ['be','fr','lu']:
-        sensorOilstd = ComponentPriceSensor(componentData, FuelType.OILSTD, postalcode, True, quantity)
+        sensorOilstd = ComponentPriceSensor(componentData, ConnectorTypes.OILSTD, postalcode, True, quantity)
         # await sensorOilstd.async_update()
         sensors.append(sensorOilstd)
         
-        sensorOilstdPrediction = ComponentOilPredictionSensor(componentData, FuelType.OILSTD_PREDICTION, quantity)
+        sensorOilstdPrediction = ComponentOilPredictionSensor(componentData, ConnectorTypes.OILSTD_PREDICTION, quantity)
         # await sensorOilstdPrediction.async_update()
         appendUniqueSensor(sensorOilstdPrediction)
     
     if oilextra and country.lower() in ['be','fr','lu']:
-        sensorOilextra = ComponentPriceSensor(componentData, FuelType.OILEXTRA, postalcode, True, quantity)
+        sensorOilextra = ComponentPriceSensor(componentData, ConnectorTypes.OILEXTRA, postalcode, True, quantity)
         # await sensorOilextra.async_update()
         sensors.append(sensorOilextra)    
         
-        sensorOilextraPrediction = ComponentOilPredictionSensor(componentData, FuelType.OILEXTRA_PREDICTION, quantity)
+        sensorOilextraPrediction = ComponentOilPredictionSensor(componentData, ConnectorTypes.OILEXTRA_PREDICTION, quantity)
         # await sensorOilextraPrediction.async_update()
         appendUniqueSensor(sensorOilextraPrediction)
     
@@ -305,13 +305,13 @@ class ComponentData:
         self._locationinfo = None
         
         self._quantity = config.get("quantity")
-        self._super95 = config.get(FuelType.SUPER95.name_lowercase)
-        self._super95_e5 = config.get(FuelType.SUPER95_E5.name_lowercase)
-        self._super98 = config.get(FuelType.SUPER98.name_lowercase)
-        self._diesel = config.get(FuelType.DIESEL.name_lowercase)
-        self._lpg = config.get(FuelType.LPG.name_lowercase)
-        self._oilstd = config.get(FuelType.OILSTD.name_lowercase)
-        self._oilextra = config.get(FuelType.OILEXTRA.name_lowercase)
+        self._super95 = config.get(ConnectorTypes.SUPER95.name_lowercase)
+        self._super95_e5 = config.get(ConnectorTypes.SUPER95_E5.name_lowercase)
+        self._super98 = config.get(ConnectorTypes.SUPER98.name_lowercase)
+        self._diesel = config.get(ConnectorTypes.DIESEL.name_lowercase)
+        self._lpg = config.get(ConnectorTypes.LPG.name_lowercase)
+        self._oilstd = config.get(ConnectorTypes.OILSTD.name_lowercase)
+        self._oilextra = config.get(ConnectorTypes.OILEXTRA.name_lowercase)
             
         # <optgroup label="Brandstof">
             # <option value="E10">Super 95 (E10)</option>
@@ -329,19 +329,19 @@ class ComponentData:
             # <option value="Elec">Elektriciteit</option>
         # </optgroup>
         
-    async def get_fuel_price_info(self, fuel_type: FuelType):
+    async def get_fuel_price_info(self, fuel_type: ConnectorTypes):
         _LOGGER.debug(f"{NAME} getting fuel price_info {fuel_type.name_lowercase} {self._postalcode}, {self._country}, {self._town}, {self._locationinfo}, {fuel_type}") 
         price_info = await self._hass.async_add_executor_job(lambda: self._session.getFuelPrices(self._postalcode, self._country, self._town, self._locationinfo, fuel_type, False))
         self._price_info[fuel_type] = price_info
         _LOGGER.debug(f"{NAME} price_info {fuel_type.name_lowercase} {price_info}")  
 
-    async def get_oil_price_info(self, fuel_type: FuelType):
+    async def get_oil_price_info(self, fuel_type: ConnectorTypes):
         _LOGGER.debug(f"{NAME} getting oil price_info {fuel_type.name_lowercase}") 
         price_info = await self._hass.async_add_executor_job(lambda: self._session.getOilPrice(self._locationinfo, self._quantity, fuel_type.code))
         self._price_info[fuel_type] = price_info
         _LOGGER.debug(f"{NAME} price_info {fuel_type.name_lowercase} {price_info}")   
     
-    async def get_fuel_price_prediction_info(self, fuel_type: FuelType):
+    async def get_fuel_price_prediction_info(self, fuel_type: ConnectorTypes):
         _LOGGER.debug(f"{NAME} getting prediction price_info {fuel_type.name_lowercase}") 
         try:
             prediction_info = await self._hass.async_add_executor_job(lambda: self._session.getFuelPrediction(fuel_type.code))
@@ -350,7 +350,7 @@ class ComponentData:
         except Exception as e:
             _LOGGER.error(f"ERROR: prediction failed for {fuel_type.name_lowercase} : {e}")
     
-    async def get_fuel_price_official_info(self, fuel_type: FuelType):
+    async def get_fuel_price_official_info(self, fuel_type: ConnectorTypes):
         _LOGGER.debug(f"{NAME} getting official price_info {fuel_type.name_lowercase}") 
         try:
             official_info = await self._hass.async_add_executor_job(lambda: self._session.getFuelOfficial(fuel_type, self._country))
@@ -363,8 +363,8 @@ class ComponentData:
         _LOGGER.debug(f"{NAME} getting price_info oil prediction") 
         try:
             prediction_info = await self._hass.async_add_executor_job(lambda: self._session.getOilPrediction())
-            self._price_info[FuelType.OILSTD_PREDICTION] = prediction_info
-            self._price_info[FuelType.OILEXTRA_PREDICTION] = prediction_info
+            self._price_info[ConnectorTypes.OILSTD_PREDICTION] = prediction_info
+            self._price_info[ConnectorTypes.OILEXTRA_PREDICTION] = prediction_info
             _LOGGER.debug(f"{NAME} prediction_info oilPrediction {prediction_info}")
         except Exception as e:
             _LOGGER.error(f"ERROR: prediction failed for oil : {e}")
@@ -396,51 +396,51 @@ class ComponentData:
                 self._locationinfo = boundingboxLocationInfo
             # postalcode, country, town, locationinfo, fueltypecode)
             if self._super95:
-                await self.get_fuel_price_info(FuelType.SUPER95)  
+                await self.get_fuel_price_info(ConnectorTypes.SUPER95)  
                 if self._country.lower() in ['be','fr','lu']:
-                    await self.get_fuel_price_prediction_info(FuelType.SUPER95_PREDICTION) 
-                    await self.get_fuel_price_official_info(FuelType.SUPER95_OFFICIAL_E10)
+                    await self.get_fuel_price_prediction_info(ConnectorTypes.SUPER95_PREDICTION) 
+                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER95_OFFICIAL_E10)
                 if self._country.lower() in ['nl']:
-                    await self.get_fuel_price_official_info(FuelType.SUPER95_OFFICIAL_E10)
+                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER95_OFFICIAL_E10)
 
             if self._super95_e5:
-                await self.get_fuel_price_info(FuelType.SUPER95_E5)  
+                await self.get_fuel_price_info(ConnectorTypes.SUPER95_E5)  
                 if self._country.lower() in ['be','fr','lu'] and not self._super95:
-                    await self.get_fuel_price_prediction_info(FuelType.SUPER95_PREDICTION) 
-                    await self.get_fuel_price_official_info(FuelType.SUPER95_OFFICIAL_E10)
+                    await self.get_fuel_price_prediction_info(ConnectorTypes.SUPER95_PREDICTION) 
+                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER95_OFFICIAL_E10)
                 if self._country.lower() in ['nl'] and not self._super95:
-                    await self.get_fuel_price_official_info(FuelType.SUPER95_OFFICIAL_E10)
+                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER95_OFFICIAL_E10)
                 
             if self._super98:
-                await self.get_fuel_price_info(FuelType.SUPER98)  
+                await self.get_fuel_price_info(ConnectorTypes.SUPER98)  
                 if self._country.lower() in ['be','fr','lu']:
-                    await self.get_fuel_price_official_info(FuelType.SUPER98_OFFICIAL_E10)
-                    await self.get_fuel_price_official_info(FuelType.SUPER98_OFFICIAL_E5)
+                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER98_OFFICIAL_E10)
+                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER98_OFFICIAL_E5)
                 if self._country.lower() in ['nl']:
-                    await self.get_fuel_price_official_info(FuelType.SUPER98_OFFICIAL_E5)
+                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER98_OFFICIAL_E5)
                 
             if self._diesel:
-                await self.get_fuel_price_info(FuelType.DIESEL)  
+                await self.get_fuel_price_info(ConnectorTypes.DIESEL)  
                 if self._country.lower() in ['be','fr','lu']:
-                    await self.get_fuel_price_prediction_info(FuelType.DIESEL_Prediction)
-                    await self.get_fuel_price_official_info(FuelType.DIESEL_OFFICIAL_B10)
-                    await self.get_fuel_price_official_info(FuelType.DIESEL_OFFICIAL_B7)
-                    await self.get_fuel_price_official_info(FuelType.DIESEL_OFFICIAL_XTL)
+                    await self.get_fuel_price_prediction_info(ConnectorTypes.DIESEL_Prediction)
+                    await self.get_fuel_price_official_info(ConnectorTypes.DIESEL_OFFICIAL_B10)
+                    await self.get_fuel_price_official_info(ConnectorTypes.DIESEL_OFFICIAL_B7)
+                    await self.get_fuel_price_official_info(ConnectorTypes.DIESEL_OFFICIAL_XTL)
                 if self._country.lower() in ['nl']:
-                    await self.get_fuel_price_official_info(FuelType.DIESEL_OFFICIAL_B7)
+                    await self.get_fuel_price_official_info(ConnectorTypes.DIESEL_OFFICIAL_B7)
                 
             if self._lpg:
-                await self.get_fuel_price_info(FuelType.LPG)
+                await self.get_fuel_price_info(ConnectorTypes.LPG)
                 if self._country.lower() in ['be','fr','lu']:
-                    await self.get_fuel_price_official_info(FuelType.LPG_OFFICIAL)
+                    await self.get_fuel_price_official_info(ConnectorTypes.LPG_OFFICIAL)
                 if self._country.lower() in ['nl']:
-                    await self.get_fuel_price_official_info(FuelType.LPG_OFFICIAL)
+                    await self.get_fuel_price_official_info(ConnectorTypes.LPG_OFFICIAL)
                 
             if self._oilstd and self._country.lower() in ['be','fr','lu']:
-                await self.get_oil_price_info(FuelType.OILSTD)  
+                await self.get_oil_price_info(ConnectorTypes.OILSTD)  
                 
             if self._oilextra and self._country.lower() in ['be','fr','lu']:
-                await self.get_oil_price_info(FuelType.OILEXTRA)
+                await self.get_oil_price_info(ConnectorTypes.OILEXTRA)
                 
             if self._oilstd or self._oilextra and self._country.lower() in ['be','fr','lu']:
                 await self.get_oil_price_prediction_info()
@@ -483,7 +483,7 @@ class ComponentData:
 
 
 class ComponentPriceSensor(Entity):
-    def __init__(self, data, fueltype: FuelType, postalcode, isOil, quantity, individual_station = ""):
+    def __init__(self, data, fueltype: ConnectorTypes, postalcode, isOil, quantity, individual_station = ""):
         self._data = data
         self._fueltype = fueltype
         self._postalcode = postalcode
@@ -664,7 +664,7 @@ class ComponentPriceSensor(Entity):
         return SensorDeviceClass.MONETARY
 
 class ComponentPriceNeighborhoodSensor(Entity):
-    def __init__(self, data, fueltype: FuelType, postalcode, max_distance):
+    def __init__(self, data, fueltype: ConnectorTypes, postalcode, max_distance):
         self._data = data
         self._fueltype = fueltype
         self._postalcode = postalcode
@@ -919,7 +919,7 @@ class ComponentFuelPredictionSensor(Entity):
         
 
 class ComponentOilPredictionSensor(Entity):
-    def __init__(self, data, fueltype: FuelType, quantity):
+    def __init__(self, data, fueltype: ConnectorTypes, quantity):
         self._data = data
         self._fueltype = fueltype
         self._quantity = quantity
