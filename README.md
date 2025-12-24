@@ -22,6 +22,23 @@ For electricity price expectations [this Entso-E HACS integration](https://githu
 
 <p align="center"><img src="https://raw.githubusercontent.com/myTselection/EVChargingStations/master/logo.png"/></p>
 
+With this integration it will be possible to:
+- subscribe to specific charging point, to make it possible to get notified once available
+- get sensors (can be shown on map) with:
+   - charging stations **nearest** to location
+   - **available** charging stations **nearest** to location
+   - **high** speed charging station **nearest** to location
+   - **high** speed **available** charging stations **nearest** to location
+   - **super high** speed charging station **nearest** to location
+   - **super high** speed **available** charging station **nearest** to
+
+   - **cheapest** charging stations and nearest to location
+   - **available** **cheapest** charging stations and nearest to location
+   - **high** speed charging station **cheapest** and nearest to location
+   - **high** speed **available** **cheapest** charging stations and nearest to location
+   - **super high** speed **cheapest** charging station and nearest to location
+   - **super high** speed **available** **cheapest** charging station and nearest to location
+
 
 
 # TODO, UNDER CONSTRUCTION
