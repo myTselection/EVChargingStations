@@ -32,6 +32,7 @@ With this integration it will be possible to:
    - **super high** speed charging station **nearest** to location
    - **super high** speed **available** charging station **nearest** to
 
+Optional also:
    - **cheapest** charging stations and nearest to location
    - **available** **cheapest** charging stations and nearest to location
    - **high** speed charging station **cheapest** and nearest to location
