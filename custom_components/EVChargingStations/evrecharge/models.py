@@ -124,7 +124,7 @@ class PredictedOccupancies(BaseModel):
     endTime: str
 
 
-class Location(BaseModel):
+class ChargingStation(BaseModel):
     """Location data."""
 
     uid: int

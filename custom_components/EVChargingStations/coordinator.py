@@ -6,9 +6,10 @@ from asyncio.exceptions import CancelledError
 from aiohttp.client_exceptions import ClientError
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .evrecharge import EVApi, Location, LocationEmptyError
+from .evrecharge import EVApi, ChargingStation, LocationEmptyError
 from .evrecharge.user import AssetsEmptyError, DetailedChargePointEmptyError, User
 from .evrecharge.usermodels import DetailedAssets
+from .location import LocationSession
 
 from .const import DOMAIN, UPDATE_INTERVAL, SerialNumber
 
@@ -80,7 +81,7 @@ class EVRechargeUserDataUpdateCoordinator(DataUpdateCoordinator[DetailedAssets])
         )
 
 
-class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[Location]):
+class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[ChargingStation]):
     """Handles data updates for public chargers."""
 
     def __init__(
@@ -96,7 +97,76 @@ class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[Location]):
         self.api = api
         self.serial_number = serial_number
 
-    async def _async_update_data(self) -> Location:
+    async def _async_update_data(self) -> ChargingStation:
+        """Fetch data from API endpoint.
+
+        This is the place to pre-process the data to lookup tables
+        so entities can quickly look up their data.
+        """
+        data = None
+        try:
+            data = await self.api.location_by_id(self.serial_number)
+        except LocationEmptyError as exc:
+            _LOGGER.error(
+                "Error occurred while fetching data for charger(s) %s, not found, or serial is invalid",
+                self.serial_number,
+            )
+            raise UpdateFailed() from exc
+        except CancelledError as exc:
+            _LOGGER.error(
+                "CancelledError occurred while fetching data for charger(s) %s",
+                self.serial_number,
+            )
+            raise UpdateFailed() from exc
+        except TimeoutError as exc:
+            _LOGGER.error(
+                "TimeoutError occurred while fetching data for charger(s) %s",
+                self.serial_number,
+            )
+            raise UpdateFailed() from exc
+        except ClientError as exc:
+            _LOGGER.error(
+                "ClientError occurred while fetching data for charger(s) %s",
+                self.serial_number,
+            )
+            raise UpdateFailed() from exc
+        except Exception as exc:
+            _LOGGER.error(
+                "Unexpected error occurred while fetching data for charger(s) %s: %s",
+                self.serial_number,
+                exc,
+                exc_info=True,
+            )
+            raise UpdateFailed() from exc
+
+        if data is None:
+            _LOGGER.error(
+                "API returned None data for charger(s) %s",
+                self.serial_number,
+            )
+            raise UpdateFailed("API returned None data")
+
+        return data
+
+
+
+class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
+    """Handles data updates for public chargers."""
+
+    def __init__(
+        self, hass: HomeAssistant, api: EVApi, resolved_origin: str
+    ) -> None:
+        """Initialize coordinator."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_interval=UPDATE_INTERVAL,
+        )
+        self.api = api
+        self.resolved_origin = resolved_origin
+
+    async def _async_update_data(self):
         """Fetch data from API endpoint.
 
         This is the place to pre-process the data to lookup tables

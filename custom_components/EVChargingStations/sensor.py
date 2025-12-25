@@ -17,7 +17,7 @@ from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .evrecharge.models import Location, Status, Connector
+from .evrecharge.models import ChargingStation, Status, Connector
 from .evrecharge.usermodels import ChargePointDetailedStatus, ChargeToken, DetailedAssets, DetailedChargePoint, DetailedEvse
 
 from . import (
@@ -258,7 +258,7 @@ class EVRechargeSensor(
         super().__init__(coordinator)
         self.evse_id = evse_id
         self.coordinator = coordinator
-        self.location: Location = self.coordinator.data
+        self.location: ChargingStation = self.coordinator.data
         self._attr_unique_id = f"{evse_id}-charger"
         self._attr_attribution = "shellrecharge.com"
         self._attr_device_class = SensorDeviceClass.ENUM
@@ -280,7 +280,7 @@ class EVRechargeSensor(
         self._read_coordinator_data()
 
     def _get_evse(self) -> Any:
-        location: Location = self.coordinator.data
+        location: ChargingStation = self.coordinator.data
         if location:
             for evse in location.evses:
                 if evse.uid == self.evse_id:
@@ -307,7 +307,7 @@ class EVRechargeSensor(
     def _read_coordinator_data(self) -> None:
         """Read data from shell recharge ev."""
         evse = self._get_evse()
-        location: Location = self.coordinator.data
+        location: ChargingStation = self.coordinator.data
         _LOGGER.debug(evse)
 
         try:

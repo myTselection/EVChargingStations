@@ -11,7 +11,7 @@ from aiohttp_retry import ExponentialRetry, RetryClient
 from pydantic import ValidationError
 from yarl import URL
 
-from .models import Location
+from .models import ChargingStation
 from .user import User
 
 
@@ -23,7 +23,7 @@ class EVApi:
         self.websession = websession
         self.logger = logging.getLogger("evrecharge")
 
-    async def location_by_id(self, location_id: str) -> Location | None:
+    async def location_by_id(self, location_id: str) -> ChargingStation | None:
         """
         Perform API request.
         Usually yields just one Location object with one or multiple chargers.
@@ -45,9 +45,9 @@ class EVApi:
                     result = await response.json()
                     if result:
                         if pydantic.version.VERSION.startswith("1"):
-                            location = Location.parse_obj(result[0])
+                            location = ChargingStation.parse_obj(result[0])
                         else:
-                            location = Location.model_validate(result[0])
+                            location = ChargingStation.model_validate(result[0])
                     else:
                         raise LocationEmptyError()
                 elif response.status == 429:
