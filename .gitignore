@@ -131,3 +131,4 @@ dmypy.json
 /custom_components/evchargingstations/testUtils.py
 my_cache.sqlite
 .vscode/launch.json
+/custom_components/EVChargingStations_old

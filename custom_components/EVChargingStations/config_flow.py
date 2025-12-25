@@ -1,102 +1,105 @@
-"""Adds config flow for component."""
-import logging
-from collections import OrderedDict
+"""Config flow for integration."""
+
+from __future__ import annotations
+
+from asyncio import CancelledError
+from typing import Any
+
 
 import voluptuous as vol
+from aiohttp.client_exceptions import ClientError
 from homeassistant import config_entries
-from homeassistant.helpers.selector import selector, SelectSelector, SelectSelectorConfig
-from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.location import find_coordinates
-from homeassistant.const import (
-    CONF_NAME,
-    CONF_PASSWORD,
-    CONF_RESOURCES,
-    CONF_SCAN_INTERVAL,
-    CONF_USERNAME
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
+from .evrecharge import EVApi, LocationEmptyError, LocationValidationError
+from .evrecharge.user import LoginFailedError
+
+from .const import DOMAIN
+
+RECHARGE_SCHEMA = vol.Schema(
+    {
+        vol.Optional("public"): section(
+            vol.Schema(
+                {
+                    vol.Optional("serial_number"): str,
+                }
+            ),
+            {"collapsed": True},
+        ),
+        vol.Optional("private"): section(
+            vol.Schema(
+                {
+                    vol.Optional("email"): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.EMAIL)
+                    ),
+                    vol.Optional("password"): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                }
+            ),
+            {"collapsed": True},
+        ),
+    }
 )
 
-from . import DOMAIN, NAME
-from .utils import *
 
-_LOGGER = logging.getLogger(__name__)
+class EVRechargeFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for shell_recharge_ev."""
 
+    VERSION = 3
 
-def create_schema(entry, option=False):
-    """Create a default schema based on if a option or if settings
-    is already filled out.
-    """
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Handle the initial step."""
+        errors: dict[str, str] = {}
+        if user_input is None:
+            return self.async_show_form(step_id="user", data_schema=RECHARGE_SCHEMA)
 
-    if option and entry :
-        # We use .get here incase some of the texts gets changed.
-        default_origin = entry.get("origin","")
-        default_filter = entry.get("filter","")
-        default_connector_types = entry.get("connector_types",[ConnectorTypes.ELECTRIC_T2.name_lowercase])
-        default_friendly_name_template = entry.get("friendly_name_template","")
-        default_logo_with_price = entry.get("default_logo_with_price", True)
-    else:
-        default_filter = ""
+        try:
+            if user_input.get("public") and user_input["public"].get("serial_number"):
+                unique_id = user_input["public"]["serial_number"]
+                api = EVApi(websession=async_get_clientsession(self.hass))
+                await api.location_by_id(unique_id)
+            elif (
+                user_input.get("private")
+                and user_input["private"].get("email")
+                and user_input["private"].get("password")
+            ):
+                unique_id = user_input["private"]["email"]
+                api = EVApi(websession=async_get_clientsession(self.hass))
+                user = await api.get_user(
+                    email=unique_id,
+                    pwd=user_input["private"]["password"],
+                )
+                user_input["private"]["api_key"] = user.cookies["tnm_api"]
+            else:
+                errors["base"] = "missing_data"
+                return self.async_show_form(
+                    step_id="user", data_schema=RECHARGE_SCHEMA, errors=errors
+                )
+        except LoginFailedError:
+            errors["base"] = "login_failed"
+        except LocationEmptyError:
+            errors["base"] = "empty_response"
+        except LocationValidationError:
+            errors["base"] = "validation"
+        except (ClientError, TimeoutError, CancelledError):
+            errors["base"] = "cannot_connect"
 
-    connector_types = [
-        ConnectorTypes.ELECTRIC_T1.name_lowercase,
-        ConnectorTypes.ELECTRIC_T2.name_lowercase,
-        ConnectorTypes.ELECTRIC_DC.name_lowercase
-    ]
+        if not errors:
+            await self.async_set_unique_id(unique_id)
+            self._abort_if_unique_id_configured(updates=user_input)
+            return self.async_create_entry(
+                title=f"Shell Recharge Charge Point ID {unique_id}",
+                data=user_input,
+            )
 
-    data_schema = OrderedDict()
-    data_schema[
-        vol.Optional("origin", default=default_origin, description="Origin eg: 51.330436, 3.802043 or person.fred")
-    ] = str
-    data_schema[
-        vol.Optional("filter", default=default_filter, description="Supplier brand filter (optional)")
-    ] = str
-    data_schema[vol.Required("connector_types", default=default_connector_types, description="Connector Type(s)")] = SelectSelector(
-                        SelectSelectorConfig(
-                            multiple=True,  # Enables multi-select
-                            options=[{"value": opt, "label": opt} for opt in connector_types]
-                        )
-                    )
-    return data_schema
-
-
-class ComponentFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for component."""
-
-    VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
-    _init_info = {}
-    _carbuLocationInfo = {}
-    _towns = []
-    _stations = []
-    _session = None
-
-    def __init__(self):
-        """Initialize."""
-        self._errors = {}
-
-    async def async_step_user(self, user_input=None):  # pylint: disable=dangerous-default-value
-        """Handle a flow initialized by the user."""
-
-        if user_input is not None:
-            self._init_info = user_input
-            _LOGGER.debug(f"user_input: {user_input}")
-            self._session = ComponentSession(user_input.get('GEO_API_KEY'))
-            resolved_origin = find_coordinates(self.hass, user_input.get('origin'))
-            try:
-                await self._session.countChargingStations(resolved_origin)
-                custom_title = f"{NAME} {user_input.get('origin')} {" ".join(user_input.get('connector_types'))}"
-                return self.async_create_entry(title=custom_title, data=self._init_info)
-            except Exception as error:
-                _LOGGER.error("Error trying to validate entry: %s", error)
-                # If we get here, it's because we couldn't connect
-                self._errors["base"] = "cannot_connect"
-        return await self._show_config_form(user_input)
-        
-
-    async def _show_config_form(self, user_input):
-        """Show the configuration form to edit location data."""
-        data_schema = create_schema(user_input, True)
         return self.async_show_form(
-            step_id="user", data_schema=vol.Schema(data_schema), errors=self._errors
+            step_id="user", data_schema=RECHARGE_SCHEMA, errors=errors
         )
-    

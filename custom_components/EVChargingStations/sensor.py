@@ -1,1188 +1,355 @@
+"""Sensors for the shell_recharge integration."""
+
+from __future__ import annotations
+
 import logging
-import asyncio
-from datetime import date, datetime, timedelta
-import calendar
-from .utils import *
-import random
+import typing
+from typing import Any
 
-import homeassistant.helpers.config_validation as cv
+# import evrecharge
 import voluptuous as vol
-from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity, SensorDeviceClass
-from homeassistant.const import ATTR_ATTRIBUTION
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.entity import Entity,DeviceInfo
-from homeassistant.util import Throttle
-from homeassistant.const import (
-    CONF_NAME,
-    CONF_PASSWORD,
-    CONF_RESOURCES,
-    CONF_SCAN_INTERVAL,
-    CONF_USERNAME
-)
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.text import TextEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import entity_platform
+from homeassistant.helpers.entity import DeviceInfo, Entity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from .evrecharge.models import Location, Status, Connector
+from .evrecharge.usermodels import ChargePointDetailedStatus, ChargeToken, DetailedAssets, DetailedChargePoint, DetailedEvse
 
-from . import DOMAIN, NAME
+from . import (
+    EVRechargePublicDataUpdateCoordinator,
+    EVRechargeUserDataUpdateCoordinator,
+)
+from .const import DOMAIN, EvseId, EVRechargeEntityFeature
 
 _LOGGER = logging.getLogger(__name__)
-_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.0%z"
-# Global or module-level variable to track existing sensors
-existing_sensors = set()
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Required("country", default="BE"): cv.string,
-        vol.Required("postalcode"): cv.string,
-        vol.Optional("town"): cv.string,
-        vol.Optional("filter"): cv.string,
-        vol.Optional(ConnectorTypes.SUPER95.name_lowercase, default=True): cv.boolean,
-        vol.Optional(ConnectorTypes.SUPER98.name_lowercase, default=True): cv.boolean,
-        vol.Optional(ConnectorTypes.DIESEL.name_lowercase, default=True): cv.boolean,
-        vol.Optional(ConnectorTypes.LPG.name_lowercase, default=True): cv.boolean,
-        vol.Optional(ConnectorTypes.OILSTD.name_lowercase, default=True): cv.boolean,
-        vol.Optional(ConnectorTypes.OILEXTRA.name_lowercase, default=True): cv.boolean,
-        vol.Optional("quantity", default=1000): cv.positive_int,
-    }
-)
-
-MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=120 + random.uniform(10, 20))
-# MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=10)
 
 
-async def dry_setup(hass, config_entry, async_add_devices):
-    config = config_entry
-    country = config.get("country")
-    postalcode = config.get("postalcode")
-    town = config.get("town")
-    filter = config.get("filter")
-    individualstation = config.get("individualstation", False)
-    station = config.get("station","")
-    super95 = config.get(ConnectorTypes.SUPER95.name_lowercase)
-    super95_e5 = config.get(ConnectorTypes.SUPER95_E5.name_lowercase)
-    super98 = config.get(ConnectorTypes.SUPER98.name_lowercase)
-    diesel = config.get(ConnectorTypes.DIESEL.name_lowercase)
-    lpg = config.get(ConnectorTypes.LPG.name_lowercase)
-    oilstd = config.get(ConnectorTypes.OILSTD.name_lowercase)
-    oilextra = config.get(ConnectorTypes.OILEXTRA.name_lowercase)
-    quantity = config.get("quantity")
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up a sensor entry."""
 
-    check_settings(config, hass)
-    sensors = []
+    if not hass.data[DOMAIN].get("_service_registered"):
+        platform = entity_platform.async_get_current_platform()
+        platform.async_register_entity_service(
+            name="toggle_session",
+            schema={
+                vol.Required("card"): str,
+                vol.Required("toggle"): str,
+            },
+            func="toggle_session",
+        )
+        hass.data[DOMAIN]["_service_registered"] = True
 
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    entities: list[Entity] = []
+    evse_id = ""
 
-    def appendUniqueSensor(sensor):
-        _LOGGER.debug(f"checking unique sensor {sensor.unique_id}")
-        sensorName = f"sensor.{sensor.unique_id.replace(" ", "_").replace(".", "_").lower()}"
-        _LOGGER.debug(f"checking unique sensor {sensor.unique_id} {sensorName}")
-        if sensorName not in existing_sensors:
-            _LOGGER.debug(f"Adding unique sensor {sensorName}")
-            sensors.append(sensor)
-            # Add the sensor to the set of existing sensors
-            existing_sensors.add(sensorName)
-    
-    componentData = ComponentData(
-        config,
-        hass
-    )
-    await componentData._forced_update()
-    assert componentData._price_info is not None
+    if coordinator.data:
+        if isinstance(coordinator, EVRechargePublicDataUpdateCoordinator):
+            for evse in coordinator.data.evses:
+                evse_id = evse.uid
+                sensor: SensorEntity = EVRechargeSensor(
+                    evse_id=evse_id, coordinator=coordinator
+                )
+                entities.append(sensor)
+        else:
+            for charger in coordinator.data.chargePoints:
+                for evse in charger._embedded.evses:  # pylint: disable=protected-access
+                    evse_id = evse.evseId
+                    sensor = EVRechargePrivateSensor(
+                        evse_id=evse_id, coordinator=coordinator
+                    )
+                    entities.append(sensor)
+            for card in coordinator.data.chargeTokens:
+                text = EVCardText(card_id=card.uuid, coordinator=coordinator)
+                entities.append(text)
 
-
-    # _LOGGER.debug(f"postalcode {postalcode} station: {station} individualstation {individualstation}")
-
-    if super95:
-        sensorSuper95 = ComponentPriceSensor(componentData, ConnectorTypes.SUPER95, postalcode, False, 0, station)
-        # await sensorSuper95.async_update()
-        sensors.append(sensorSuper95)
-        
-        if not individualstation:
-                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER95, postalcode, 5)
-                # await sensorSuper95Neigh.async_update()
-                sensors.append(sensorSuper95Neigh)
-                
-                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER95, postalcode, 10)
-                # await sensorSuper95Neigh.async_update()
-                sensors.append(sensorSuper95Neigh)
+        async_add_entities(entities, True)
 
 
-        if country.lower() in ['be','fr','lu']:
-            sensorSuper95Prediction = ComponentFuelPredictionSensor(componentData, ConnectorTypes.SUPER95_PREDICTION)
-            appendUniqueSensor(sensorSuper95Prediction)
-            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER95_OFFICIAL_E10)
-            appendUniqueSensor(sensorSuper95Official)
-
-        if country.lower() in ['nl']:
-            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER95_OFFICIAL_E10)
-            appendUniqueSensor(sensorSuper95Official)
-
-    if super95_e5:
-        sensorSuper95_e5 = ComponentPriceSensor(componentData, ConnectorTypes.SUPER95_E5, postalcode, False, 0, station)
-        # await sensorSuper95.async_update()
-        sensors.append(sensorSuper95_e5)
-        
-        if not individualstation:
-                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER95_E5, postalcode, 5)
-                # await sensorSuper95Neigh.async_update()
-                sensors.append(sensorSuper95Neigh)
-                
-                sensorSuper95Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER95_E5, postalcode, 10)
-                # await sensorSuper95Neigh.async_update()
-                sensors.append(sensorSuper95Neigh)
-
-        if country.lower() in ['be','fr','lu'] and not(super95):
-            sensorSuper95Prediction = ComponentFuelPredictionSensor(componentData, ConnectorTypes.SUPER95_PREDICTION)
-            appendUniqueSensor(sensorSuper95Prediction)
-            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER95_OFFICIAL_E10)
-            appendUniqueSensor(sensorSuper95Official)
-
-        if country.lower() in ['nl'] and not(super95):
-            sensorSuper95Official = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER95_OFFICIAL_E10)
-            appendUniqueSensor(sensorSuper95Official)
-    
-    
-    if super98:
-        sensorSuper98 = ComponentPriceSensor(componentData, ConnectorTypes.SUPER98, postalcode, False, 0, station)
-        # await sensorSuper95.async_update()
-        sensors.append(sensorSuper98)
-        
-        if not individualstation:
-            sensorSuper98Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER98, postalcode, 5)
-            # await sensorSuper95Neigh.async_update()
-            sensors.append(sensorSuper98Neigh)
-            
-            sensorSuper98Neigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.SUPER98, postalcode, 10)
-            # await sensorSuper95Neigh.async_update()
-            sensors.append(sensorSuper98Neigh)
-
-        if country.lower() in ['be','fr','lu']:
-            sensorSuper98OfficialE10 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER98_OFFICIAL_E10)
-            appendUniqueSensor(sensorSuper98OfficialE10)
-            
-            sensorSuper98OfficialE5 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER98_OFFICIAL_E5)
-            appendUniqueSensor(sensorSuper98OfficialE5)
-
-        if country.lower() in ['nl']:
-            sensorSuper98OfficialE5 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.SUPER98_OFFICIAL_E5)
-            appendUniqueSensor(sensorSuper98OfficialE5)
-
-    if diesel:
-        sensorDiesel = ComponentPriceSensor(componentData, ConnectorTypes.DIESEL, postalcode, False, 0, station)
-        # await sensorDiesel.async_update()
-        sensors.append(sensorDiesel)
-        
-        if not individualstation:
-            sensorDieselNeigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.DIESEL, postalcode, 5)
-            # await sensorDieselNeigh.async_update()
-            sensors.append(sensorDieselNeigh)
-            
-            sensorDieselNeigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.DIESEL, postalcode, 10)
-            # await sensorDieselNeigh.async_update()
-            sensors.append(sensorDieselNeigh)
-        
-        if country.lower() in ['be','fr','lu']:
-            sensorDieselPrediction = ComponentFuelPredictionSensor(componentData, ConnectorTypes.DIESEL_Prediction)
-            # await sensorDieselPrediction.async_update()
-            appendUniqueSensor(sensorDieselPrediction)
-
-            sensorDieselOfficialB10 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.DIESEL_OFFICIAL_B10)            
-            appendUniqueSensor(sensorDieselOfficialB10)
-
-            sensorDieselOfficialB7 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.DIESEL_OFFICIAL_B7)            
-            appendUniqueSensor(sensorDieselOfficialB7)
-
-            sensorDieselOfficialXTL = ComponentFuelOfficialSensor(componentData, ConnectorTypes.DIESEL_OFFICIAL_XTL)            
-            appendUniqueSensor(sensorDieselOfficialXTL)
-        
-        if country.lower() in ['nl']:
-            sensorDieselOfficialB7 = ComponentFuelOfficialSensor(componentData, ConnectorTypes.DIESEL_OFFICIAL_B7)
-            appendUniqueSensor(sensorDieselOfficialB7)
-
-    if lpg:
-        sensorLpg = ComponentPriceSensor(componentData, ConnectorTypes.LPG, postalcode, False, 0, station)
-        # await sensorDiesel.async_update()
-        sensors.append(sensorLpg)
-        
-        if not individualstation:
-            sensorLpgNeigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.LPG, postalcode, 5)
-            # await sensorLpgNeigh.async_update()
-            sensors.append(sensorLpgNeigh)
-            
-            sensorLpgNeigh = ComponentPriceNeighborhoodSensor(componentData, ConnectorTypes.LPG, postalcode, 10)
-            # await sensorLpgNeigh.async_update()
-            sensors.append(sensorLpgNeigh)
-
-        
-        if country.lower() in ['be','fr','lu']:
-            sensorLpgOfficial = ComponentFuelOfficialSensor(componentData, ConnectorTypes.LPG_OFFICIAL)
-            appendUniqueSensor(sensorLpgOfficial)
-
-        if country.lower() in ['nl']:
-            sensorLpgOfficial = ComponentFuelOfficialSensor(componentData, ConnectorTypes.LPG_OFFICIAL)
-            appendUniqueSensor(sensorLpgOfficial)
-        
-    if oilstd and country.lower() in ['be','fr','lu']:
-        sensorOilstd = ComponentPriceSensor(componentData, ConnectorTypes.OILSTD, postalcode, True, quantity)
-        # await sensorOilstd.async_update()
-        sensors.append(sensorOilstd)
-        
-        sensorOilstdPrediction = ComponentOilPredictionSensor(componentData, ConnectorTypes.OILSTD_PREDICTION, quantity)
-        # await sensorOilstdPrediction.async_update()
-        appendUniqueSensor(sensorOilstdPrediction)
-    
-    if oilextra and country.lower() in ['be','fr','lu']:
-        sensorOilextra = ComponentPriceSensor(componentData, ConnectorTypes.OILEXTRA, postalcode, True, quantity)
-        # await sensorOilextra.async_update()
-        sensors.append(sensorOilextra)    
-        
-        sensorOilextraPrediction = ComponentOilPredictionSensor(componentData, ConnectorTypes.OILEXTRA_PREDICTION, quantity)
-        # await sensorOilextraPrediction.async_update()
-        appendUniqueSensor(sensorOilextraPrediction)
-    
-    async_add_devices(sensors)
-
-
-async def async_setup_platform(
-    hass, config_entry, async_add_devices, discovery_info=None
+class EVRechargePrivateSensor(
+    CoordinatorEntity[EVRechargeUserDataUpdateCoordinator],
+    SensorEntity,
 ):
-    """Setup sensor platform for the ui"""
-    _LOGGER.info("async_setup_platform " + NAME)
-    await dry_setup(hass, config_entry, async_add_devices)
-    return True
+    """This sensor represent a private charger."""
 
-
-async def async_setup_entry(hass, config_entry, async_add_devices):
-    """Setup sensor platform for the ui"""
-    _LOGGER.info("async_setup_entry " + NAME)
-    config = config_entry.data
-    await dry_setup(hass, config, async_add_devices)
-    return True
-
-
-async def async_remove_entry(hass, config_entry):
-    _LOGGER.info("async_remove_entry " + NAME)
-    try:
-        await hass.config_entries.async_forward_entry_unload(config_entry, "sensor")
-        _LOGGER.info("Successfully removed sensor from the integration")
-    except ValueError:
-        pass
-        
-
-class ComponentData:
-    def __init__(self, config, hass):
-        self._config = config
-        self._hass = hass
-        self._GEO_API_KEY = config.get("GEO_API_KEY")
-        self._session = ComponentSession(self._GEO_API_KEY)
-        self._lastupdate = None
-        self._country = config.get("country")
-        self._postalcode = config.get("postalcode")
-        self._town = config.get("town")
-        self._filter = config.get("filter","")
-        self._logo_with_price = config.get("logo_with_price", True)
-        self._price_unit = "€" if self._country.lower() != "us" else "$"
-        self._price_unit_per = "€/l" if self._country.lower() != "us" else "$/g"
-
-        
-        self._friendly_name_price_template = config.get("friendly_name_price_template","")
-        self._friendly_name_neighborhood_template = config.get("friendly_name_neighborhood_template","")
-        self._friendly_name_prediction_template = config.get("friendly_name_prediction_template","")
-        self._friendly_name_official_template = config.get("friendly_name_official_template","")
-
-        
-        self._filter_choice = config.get("filter_choice", True)
-        self._friendly_name_price_template_choice = config.get("friendly_name_price_template_choice", False)
-        self._friendly_name_neighborhood_template_choice = config.get("friendly_name_neighborhood_template_choice", False)
-        self._friendly_name_prediction_template_choice = config.get("friendly_name_prediction_template_choice", False)
-        self._friendly_name_official_template_choice = config.get("friendly_name_official_template_choice", False)
-
-
-
-
-
-        self._price_info = dict()
-        
-        self._carbuLocationInfo = None
-        self._city = None
-        self._countryname = None
-        self._locationinfo = None
-        
-        self._quantity = config.get("quantity")
-        self._super95 = config.get(ConnectorTypes.SUPER95.name_lowercase)
-        self._super95_e5 = config.get(ConnectorTypes.SUPER95_E5.name_lowercase)
-        self._super98 = config.get(ConnectorTypes.SUPER98.name_lowercase)
-        self._diesel = config.get(ConnectorTypes.DIESEL.name_lowercase)
-        self._lpg = config.get(ConnectorTypes.LPG.name_lowercase)
-        self._oilstd = config.get(ConnectorTypes.OILSTD.name_lowercase)
-        self._oilextra = config.get(ConnectorTypes.OILEXTRA.name_lowercase)
-            
-        # <optgroup label="Brandstof">
-            # <option value="E10">Super 95 (E10)</option>
-            # <option value="SP98">Super 98 (E5)</option>
-            # <option value="E10_98">Super 98 (E10)</option>
-            # <option value="GO">Diesel (B7)</option>
-            # <option value="DB10">Diesel (B10)</option>
-            # <option value="DXTL">Diesel (XTL)</option>
-            # <option value="GPL">LPG</option>
-            # <option value="CNG">CNG</option>
-            # <option value="HYDROG">Hydrogeen</option>
-            # <option value="LNG">LNG</option>
-            # <option value="GO_plus">Diesel+</option>
-            # <option value="AdBlue">AdBlue</option>
-            # <option value="Elec">Elektriciteit</option>
-        # </optgroup>
-        
-    async def get_fuel_price_info(self, fuel_type: ConnectorTypes):
-        _LOGGER.debug(f"{NAME} getting fuel price_info {fuel_type.name_lowercase} {self._postalcode}, {self._country}, {self._town}, {self._locationinfo}, {fuel_type}") 
-        price_info = await self._hass.async_add_executor_job(lambda: self._session.getFuelPrices(self._postalcode, self._country, self._town, self._locationinfo, fuel_type, False))
-        self._price_info[fuel_type] = price_info
-        _LOGGER.debug(f"{NAME} price_info {fuel_type.name_lowercase} {price_info}")  
-
-    async def get_oil_price_info(self, fuel_type: ConnectorTypes):
-        _LOGGER.debug(f"{NAME} getting oil price_info {fuel_type.name_lowercase}") 
-        price_info = await self._hass.async_add_executor_job(lambda: self._session.getOilPrice(self._locationinfo, self._quantity, fuel_type.code))
-        self._price_info[fuel_type] = price_info
-        _LOGGER.debug(f"{NAME} price_info {fuel_type.name_lowercase} {price_info}")   
-    
-    async def get_fuel_price_prediction_info(self, fuel_type: ConnectorTypes):
-        _LOGGER.debug(f"{NAME} getting prediction price_info {fuel_type.name_lowercase}") 
-        try:
-            prediction_info = await self._hass.async_add_executor_job(lambda: self._session.getFuelPrediction(fuel_type.code))
-            self._price_info[fuel_type] = prediction_info
-            _LOGGER.debug(f"{NAME} prediction_info {fuel_type.name_lowercase} Prediction {prediction_info}")
-        except Exception as e:
-            _LOGGER.error(f"ERROR: prediction failed for {fuel_type.name_lowercase} : {e}")
-    
-    async def get_fuel_price_official_info(self, fuel_type: ConnectorTypes):
-        _LOGGER.debug(f"{NAME} getting official price_info {fuel_type.name_lowercase}") 
-        try:
-            official_info = await self._hass.async_add_executor_job(lambda: self._session.getFuelOfficial(fuel_type, self._country))
-            self._price_info[fuel_type] = official_info
-            _LOGGER.debug(f"{NAME} official_info {fuel_type.name_lowercase} Official {official_info}")
-        except Exception as e:
-            _LOGGER.error(f"ERROR: prediction failed for {fuel_type.name_lowercase} : {e}")
-    
-    async def get_oil_price_prediction_info(self):
-        _LOGGER.debug(f"{NAME} getting price_info oil prediction") 
-        try:
-            prediction_info = await self._hass.async_add_executor_job(lambda: self._session.getOilPrediction())
-            self._price_info[ConnectorTypes.OILSTD_PREDICTION] = prediction_info
-            self._price_info[ConnectorTypes.OILEXTRA_PREDICTION] = prediction_info
-            _LOGGER.debug(f"{NAME} prediction_info oilPrediction {prediction_info}")
-        except Exception as e:
-            _LOGGER.error(f"ERROR: prediction failed for oil : {e}")
-
-    async def getStationInfoFromPriceInfo(self, priceinfo, postalcode, fueltype, max_distance, individual_station=""):
-        if self._filter_choice:
-            stationInfo =  await self._hass.async_add_executor_job(lambda: self._session.getStationInfoFromPriceInfo(priceinfo, postalcode, fueltype, max_distance, self._filter, individual_station))
-        else:
-            stationInfo =  await self._hass.async_add_executor_job(lambda: self._session.getStationInfoFromPriceInfo(priceinfo, postalcode, fueltype, max_distance, "", individual_station))
-        return stationInfo
-    
-        
-    # same as update, but without throttle to make sure init is always executed
-    async def _forced_update(self):
-        _LOGGER.info("Fetching init stuff for " + NAME)
-        if not(self._session):
-            self._session = ComponentSession(self._GEO_API_KEY)
-
-        if self._session:
-            _LOGGER.debug("Starting with session for " + NAME)
-            if self._locationinfo is None and self._country.lower() in ['be','fr','lu']:
-                self._carbuLocationInfo = await self._hass.async_add_executor_job(lambda: self._session.convertPostalCode(self._postalcode, self._country, self._town))
-                self._town = self._carbuLocationInfo.get("n")
-                self._city = self._carbuLocationInfo.get("pn")
-                self._countryname = self._carbuLocationInfo.get("cn")
-                self._locationinfo = self._carbuLocationInfo.get("id")
-            if self._locationinfo is None and self._country.lower() in ['it','nl','es', 'us']:
-                boundingboxLocationInfo = await self._hass.async_add_executor_job(lambda: self._session.convertLocationBoundingBox(self._postalcode, self._country, self._town))
-                self._locationinfo = boundingboxLocationInfo
-            # postalcode, country, town, locationinfo, fueltypecode)
-            if self._super95:
-                await self.get_fuel_price_info(ConnectorTypes.SUPER95)  
-                if self._country.lower() in ['be','fr','lu']:
-                    await self.get_fuel_price_prediction_info(ConnectorTypes.SUPER95_PREDICTION) 
-                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER95_OFFICIAL_E10)
-                if self._country.lower() in ['nl']:
-                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER95_OFFICIAL_E10)
-
-            if self._super95_e5:
-                await self.get_fuel_price_info(ConnectorTypes.SUPER95_E5)  
-                if self._country.lower() in ['be','fr','lu'] and not self._super95:
-                    await self.get_fuel_price_prediction_info(ConnectorTypes.SUPER95_PREDICTION) 
-                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER95_OFFICIAL_E10)
-                if self._country.lower() in ['nl'] and not self._super95:
-                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER95_OFFICIAL_E10)
-                
-            if self._super98:
-                await self.get_fuel_price_info(ConnectorTypes.SUPER98)  
-                if self._country.lower() in ['be','fr','lu']:
-                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER98_OFFICIAL_E10)
-                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER98_OFFICIAL_E5)
-                if self._country.lower() in ['nl']:
-                    await self.get_fuel_price_official_info(ConnectorTypes.SUPER98_OFFICIAL_E5)
-                
-            if self._diesel:
-                await self.get_fuel_price_info(ConnectorTypes.DIESEL)  
-                if self._country.lower() in ['be','fr','lu']:
-                    await self.get_fuel_price_prediction_info(ConnectorTypes.DIESEL_Prediction)
-                    await self.get_fuel_price_official_info(ConnectorTypes.DIESEL_OFFICIAL_B10)
-                    await self.get_fuel_price_official_info(ConnectorTypes.DIESEL_OFFICIAL_B7)
-                    await self.get_fuel_price_official_info(ConnectorTypes.DIESEL_OFFICIAL_XTL)
-                if self._country.lower() in ['nl']:
-                    await self.get_fuel_price_official_info(ConnectorTypes.DIESEL_OFFICIAL_B7)
-                
-            if self._lpg:
-                await self.get_fuel_price_info(ConnectorTypes.LPG)
-                if self._country.lower() in ['be','fr','lu']:
-                    await self.get_fuel_price_official_info(ConnectorTypes.LPG_OFFICIAL)
-                if self._country.lower() in ['nl']:
-                    await self.get_fuel_price_official_info(ConnectorTypes.LPG_OFFICIAL)
-                
-            if self._oilstd and self._country.lower() in ['be','fr','lu']:
-                await self.get_oil_price_info(ConnectorTypes.OILSTD)  
-                
-            if self._oilextra and self._country.lower() in ['be','fr','lu']:
-                await self.get_oil_price_info(ConnectorTypes.OILEXTRA)
-                
-            if self._oilstd or self._oilextra and self._country.lower() in ['be','fr','lu']:
-                await self.get_oil_price_prediction_info()
-                
-            self._lastupdate = datetime.now()
-        else:
-            _LOGGER.debug(f"{NAME} no session available")
-
-                
-    @Throttle(MIN_TIME_BETWEEN_UPDATES)
-    async def _update(self):
-        await self._forced_update()
-
-    async def update(self):
-        # force update if (some) values are still unknown
-        # if ((self._super95 and self._price_info.get(FuelType.SUPER95) is None) 
-        #     or (self._super95 and self._price_info.get(FuelType.SUPER95_Prediction) is None)
-        #     or (self._super98 and self._price_info.get(FuelType.SUPER98) is None) 
-        #     or (self._diesel and self._price_info.get(FuelType.DIESEL) is None) 
-        #     or (self._diesel and self._price_info.get(FuelType.DIESEL_Prediction) is None)
-        #     or (self._oilstd and self._price_info.get(FuelType.OILSTD) is None) 
-        #     or (self._oilextra and self._price_info.get(FuelType.OILEXTRA) is None) 
-        #     or (self._oilstd and self._price_info.get(FuelType.OILSTD_Prediction) is None)
-        #     or (self._oilextra and self._price_info.get(FuelType.OILEXTRA_Prediction) is None)):
-        #     await self._forced_update()
-        # else:
-            await self._update()
-    
-    def clear_session(self):
-        self._session : None
-
-
-    @property
-    def unique_id(self):
-        return f"{NAME} {self._postalcode}"
-    @property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return self.unique_id.title()
-
-
-class ComponentPriceSensor(Entity):
-    def __init__(self, data, fueltype: ConnectorTypes, postalcode, isOil, quantity, individual_station = ""):
-        self._data = data
-        self._fueltype = fueltype
-        self._postalcode = postalcode
-        self._isOil = isOil
-        self._quantity = quantity
-        self._individual_station = individual_station
-        self._logo_with_price = data._logo_with_price
-        self._friendly_name_price_template = self._data._friendly_name_price_template
-        self._friendly_name_price_template_choice = self._data._friendly_name_price_template_choice
-        
-        self._last_update = None
-        self._price = None
-        self._supplier = None
-        self._supplier_brand = None
-        self._url = None
-        self._logourl = None
-        self._address = None
-        self._city = None
-        self._lat = None
-        self._lon = None
-        self._fuelname = None
-        self._distance = None
-        self._date = None
-        self._score = None
-        self._country = data._country
-        self._price_unit = data._price_unit
-        self._price_unit_per = data._price_unit_per
-        self._id = None
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._price
-
-    async def async_update(self):
-        await self._data.update()
-        self._last_update =  self._data._lastupdate;
-        
-        self._priceinfo = self._data._price_info.get(self._fueltype)
-        if self._isOil:
-            if len(self._priceinfo.get("data"))>0:
-                self._price = float(self._priceinfo.get("data")[0].get("unitPrice"))
-                self._supplier  = self._priceinfo.get("data")[0].get("supplier").get("name") #x.data[0].supplier.name
-                oilproductid = self._fueltype.code
-                try:
-                    self._url   = f"https://mazout.com/belgie/offers?areaCode={self._data._locationinfo}&by=quantity&for={self._quantity}&productId={oilproductid}"
-                except:
-                    self._url   = None
-                try:
-                    self._logourl = self._priceinfo.get("data")[0].get("supplier").get("media").get("logo").get("src") #x.data[0].supplier.media.logo.src
-                except:
-                    self._logourl = None
-                try:
-                    self._score = self._priceinfo.get("data")[0].get("supplier").get("rating").get("score") #x.data[0].supplier.rating.score
-                except:
-                    self._score = None
-                # self._address = 
-                # self._city = 
-                # self._lat = 
-                # self._lon = 
-                self._fuelname = self._priceinfo.get("data")[0].get("product").get("name") #x.data[0].product.name
-                # self._distance = 
-                self._date = self._priceinfo.get("data")[0].get("available").get("visible")# x.data[0].available.visible
-                # self._quantity = self._priceinfo.get("data")[0].get("quantity")
-            else:
-                _LOGGER.debug(f'No data available in priceinfo')
-        else:
-            # _LOGGER.debug(f'indiv. station: {self._individual_station}')
-            stationInfo = await self._data.getStationInfoFromPriceInfo(self._priceinfo, self._postalcode, self._fueltype, 0, self._individual_station)
-            # stationInfo = await self._data._hass.async_add_executor_job(lambda: self._data._session.getStationInfoFromPriceInfo(self._priceinfo, self._postalcode, self._fueltype, 0, self._data._filter))
-            self._price = stationInfo.get("price") 
-            self._supplier  = stationInfo.get("supplier")
-            # self._supplier_brand  = stationInfo.get("supplier_brand")
-            self._supplier_brand  = stationInfo.get("supplier_brand") if stationInfo.get("supplier_brand") != None and len(stationInfo.get("supplier_brand")) > 1 else f'{stationInfo.get("supplier_brand")}  '
-            self._url   = stationInfo.get("url")
-            if self._logo_with_price or self._logo_with_price is None:
-                self._logourl = f"https://www.prezzibenzina.it/www2/marker.php?brand={self._supplier_brand[:2].upper()}&status=AP&price={stationInfo.get('price')}&certified=0&marker_type=1"
-            else:
-                self._logourl = stationInfo.get("entity_picture")
-            self._address = stationInfo.get("address")
-            self._postalcode = stationInfo.get("postalcode")
-            self._city = stationInfo.get("city")
-            self._lat = stationInfo.get("latitude")
-            self._lon = stationInfo.get("longitude")
-            self._fuelname = stationInfo.get("fuelname")
-            self._distance = stationInfo.get("distance")
-            self._date = stationInfo.get("date")
-            self._country = stationInfo.get("country")
-            self._id = stationInfo.get("id")
-            self._score = stationInfo.get("score")
-            
-        
-    async def async_will_remove_from_hass(self):
-        """Clean up after entity before removal."""
-        _LOGGER.info("async_will_remove_from_hass " + NAME)
-        self._data.clear_session()
-
-
-    @property
-    def icon(self) -> str:
-        """Shows the correct icon for container."""
-        if self._isOil:
-            return "mdi:barrel"
-        return "mdi:gas-station"
-        
-    @property
-    def unique_id(self) -> str:
-        """Return the name of the sensor."""
-        name = f"{NAME} {self._fueltype.name_lowercase} {self._postalcode}"
-        if self._quantity != 0:
-            name += f" {self._quantity}l"
-        if self._individual_station != "":
-            name += f" {self._individual_station.split(',')[0]}"
-        name += " price"
-        return (name)
-
-    @property
-    def name(self) -> str:
-        # return self.unique_id.title()
-        if self._friendly_name_price_template_choice:
-            return friendly_name_template(self._friendly_name_price_template, self.extra_state_attributes)
-        else:
-            return self.unique_id.title()
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return the state attributes."""
-        return {
-            ATTR_ATTRIBUTION: NAME,
-            "last update": self._last_update,
-            "fueltype": self._fueltype.name_lowercase.title(),
-            "fuelname": self._fuelname,
-            "postalcode": self._postalcode,
-            "supplier": self._supplier,
-            "supplier_brand": self._supplier_brand,
-            "url": self._url,
-            "entity_picture": self._logourl,
-            "address": self._address,
-            "city": self._city,
-            "latitude": self._lat,
-            "longitude": self._lon,
-            "distance": f"{self._distance}km",
-            "date": self._date,
-            "quantity": self._quantity,
-            "score": self._score,
-            "filter": self._data._filter,
-            "country": self._country,
-            "id": self._id
-            # "suppliers": self._priceinfo
-        }
-
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        # _LOGGER.debug(f"official device_info: {self._data.name}")
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (NAME, self._data.unique_id)
-            },
-            name=f"{NAME} {self._data._postalcode} {self._data._country}",
-            model=f"{self._data._postalcode} {self._data._country}",
-            manufacturer= NAME
+    def __init__(
+        self, evse_id: EvseId, coordinator: EVRechargeUserDataUpdateCoordinator
+    ) -> None:
+        """Initialize the Sensor."""
+        super().__init__(coordinator)
+        self.evse_id = evse_id
+        self.coordinator = coordinator
+        self.charger = self._get_charger()
+        self.evse = self._get_evse()
+        self._attr_unique_id = f"{evse_id}-charger"
+        self._attr_attribution = "account.shellrecharge.com"
+        self._attr_device_class = SensorDeviceClass.ENUM
+        self._attr_native_unit_of_measurement = None
+        self._attr_state_class = None
+        self._attr_has_entity_name = False
+        self._attr_name = f"{self.charger.name} {self.charger.address.street} {self.charger.address.number} {self.charger.address.city}"
+        self._attr_device_info = DeviceInfo(
+            name=self._attr_name,
+            identifiers={(DOMAIN, self._attr_name)},
+            entry_type=None,
+            manufacturer=self.charger.vendor,
+            model=self.charger.model,
         )
-    @property
-    def unit(self) -> int:
-        """Unit"""
-        return int
-
-    @property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement this sensor expresses itself in."""
-        return self._price_unit_per
-        
-    @property
-    def device_class(self):
-        return SensorDeviceClass.MONETARY
-
-class ComponentPriceNeighborhoodSensor(Entity):
-    def __init__(self, data, fueltype: ConnectorTypes, postalcode, max_distance):
-        self._data = data
-        self._fueltype = fueltype
-        self._postalcode = postalcode
-        self._max_distance = max_distance
-        self._logo_with_price = data._logo_with_price
-        self._friendly_name_neighborhood_template = self._data._friendly_name_neighborhood_template
-        self._friendly_name_neighborhood_template_choice = self._data._friendly_name_neighborhood_template_choice
-        
-        self._last_update = None
-        self._price = None
-        self._priceinfo = None
-        self._supplier = None
-        self._supplier_brand = None
-        self._url = None
-        self._logourl = None
-        self._address = None
-        self._city = None
-        self._lat = None
-        self._lon = None
-        self._fuelname = None
-        self._distance = None
-        self._date = None
-        self._score = None
-        self._diff = None
-        self._diff30 = None
-        self._diffPct = None
-        self._country = data._country
-        self._id = None
-        self._price_unit = data._price_unit
-        self._price_unit_per = data._price_unit_per
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._price
-
-    async def async_update(self):
-        await self._data.update()
-        self._last_update =  self._data._lastupdate;
-        
-        self._price = None
-        self._priceinfo = self._data._price_info.get(self._fueltype)
-        stationInfo = await self._data.getStationInfoFromPriceInfo(self._priceinfo, self._postalcode, self._fueltype, self._max_distance)
-        # stationInfo = await self._data._hass.async_add_executor_job(lambda: self._data._session.getStationInfoFromPriceInfo(self._priceinfo, self._postalcode, self._fueltype, 0, self._data._filter))
-        # stationInfo = await self._data._hass.async_add_executor_job(lambda: self._data._session.getStationInfoFromPriceInfo(self._priceinfo, self._postalcode, self._fueltype, 0, self._data._filter))
-        self._price = stationInfo.get("price") 
-        self._diff = stationInfo.get("diff") 
-        self._diff30 = stationInfo.get("diff30") 
-        self._diffPct = stationInfo.get("diffPct") 
-        self._supplier  = stationInfo.get("supplier")
-        # self._supplier_brand  = stationInfo.get("supplier_brand")
-        self._supplier_brand  = stationInfo.get("supplier_brand") if stationInfo.get("supplier_brand") != None and len(stationInfo.get("supplier_brand")) > 1 else f'{stationInfo.get("supplier_brand")}  '
-        self._url   = stationInfo.get("url")
-        if self._logo_with_price or self._logo_with_price is None:
-            self._logourl = f"https://www.prezzibenzina.it/www2/marker.php?brand={self._supplier_brand[:2].upper()}&status=AP&price={stationInfo.get('price')}&certified=0&marker_type={2 if self._max_distance == 5 else 3}"
-        else:
-            self._logourl = stationInfo.get("entity_picture")
-        self._address = stationInfo.get("address")
-        self._postalcode = stationInfo.get("postalcode")
-        self._city = stationInfo.get("city")
-        self._lat = stationInfo.get("latitude")
-        self._lon = stationInfo.get("longitude")
-        self._fuelname = stationInfo.get("fuelname")
-        self._distance = stationInfo.get("distance")
-        self._date = stationInfo.get("date")
-        self._country = stationInfo.get("country")
-        self._id = stationInfo.get("id")
-        self._score = stationInfo.get("score")
-        
-    async def async_will_remove_from_hass(self):
-        """Clean up after entity before removal."""
-        _LOGGER.info("async_will_remove_from_hass " + NAME)
-        self._data.clear_session()
-
-
-    @property
-    def icon(self) -> str:
-        """Shows the correct icon for container."""
-        return "mdi:gas-station"
-        
-    @property
-    def unique_id(self) -> str:
-        """Return the name of the sensor."""
-        name = f"{NAME} {self._fueltype.name_lowercase} {self._postalcode} {self._max_distance}km"
-        return (name)
-
-    @property
-    def name(self) -> str:
-        # return self.unique_id.title()
-        if self._friendly_name_neighborhood_template_choice:
-            return friendly_name_template(self._friendly_name_neighborhood_template, self.extra_state_attributes)
-        else:
-            return self.unique_id.title()
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return the state attributes."""
-        return {
-            ATTR_ATTRIBUTION: self._supplier_brand,
-            "last update": self._last_update,
-            "fueltype": self._fueltype.name_lowercase.title(),
-            "fuelname": self._fuelname,
-            "postalcode": self._postalcode,
-            "supplier": self._supplier,
-            "supplier_brand": self._supplier_brand,
-            "url": self._url,
-            "entity_picture": self._logourl,
-            "address": self._address,
-            "city": self._city,
-            "latitude": self._lat,
-            "longitude": self._lon,
-            "region": f"{self._max_distance}km",
-            "distance": f"{self._distance}km",
-            "price diff": f"{self._diff}{self._price_unit}",
-            "price diff %": f"{self._diffPct}%",
-            "price diff 30l": f"{self._diff30}{self._price_unit}",
-            "date": self._date,
-            "score": self._score,
-            "filter": self._data._filter,
-            "country": self._country,
-            "id": self._id
-        }
-
-   
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        # _LOGGER.debug(f"official device_info: {self._data.name}")
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (NAME, self._data.unique_id)
-            },
-            name=f"{NAME} {self._data._postalcode} {self._data._country}",
-            model=f"{self._data._postalcode} {self._data._country}",
-            manufacturer= NAME
+        self._attr_options = list(
+            typing.get_args(ChargePointDetailedStatus)
         )
+        self._attr_supported_features = EVRechargeEntityFeature.TOGGLE_SESSION
+        self._read_coordinator_data()
 
-    @property
-    def unit(self) -> int:
-        """Unit"""
-        return int
+    def _get_charger(self) -> DetailedChargePoint:
+        assets: DetailedAssets = self.coordinator.data
+        if assets:
+            for charger in assets.chargePoints:
+                for evse in charger._embedded.evses:  # pylint: disable=protected-access
+                    if evse.evseId == self.evse_id:
+                        return charger
+        raise HomeAssistantError("Charger not found in coordinator cache")
 
-    @property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement this sensor expresses itself in."""
-        return self._price_unit_per
-        
-    @property
-    def device_class(self):
-        return SensorDeviceClass.MONETARY
+    def _get_evse(self) -> DetailedEvse:
+        assets: DetailedAssets = self.coordinator.data
+        if assets:
+            for charger in assets.chargePoints:
+                for evse in charger._embedded.evses:  # pylint: disable=protected-access
+                    if evse.evseId == self.evse_id:
+                        return evse
+        raise HomeAssistantError("Evse not found in coordinator cache")
 
+    def _read_coordinator_data(self) -> None:
+        """Read data from shell recharge charger."""
+        self.charger = self._get_charger()
+        self.evse = self._get_evse()
 
-class ComponentFuelPredictionSensor(Entity):
-    def __init__(self, data, fueltype):
-        self._data = data
-        self._fueltype = fueltype
-        self._friendly_name_prediction_template = self._data._friendly_name_prediction_template
-        self._friendly_name_prediction_template_choice = self._data._friendly_name_prediction_template_choice
-        
-        self._fuelname = None
-        self._last_update = None
-        self._trend = None
-        self._date = None
-        
+        _LOGGER.debug(self.charger)
+        _LOGGER.debug(self.evse)
 
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._trend
-
-    async def async_update(self):
-        await self._data.update()
-        self._last_update =  self._data._lastupdate
-        
         try:
-            priceinfo = self._data._price_info.get(self._fueltype)
-        
-            
-            self._trend = round( priceinfo[0],3)
-            
-            self._date = priceinfo[1]
-        except Exception as e:
-            _LOGGER.error(f"ERROR: prediction failed for {self._fueltype.name_lowercase} : {e}")
-        
-            
-        
-    async def async_will_remove_from_hass(self):
-        """Clean up after entity before removal."""
-        _LOGGER.info("async_will_remove_from_hass " + NAME)
-        self._data.clear_session()
+            if self.charger and self.evse:
+                self._attr_native_value = self.evse.status
+                self._attr_icon = "mdi:ev-plug-type2"
+                extra_data = {
+                    "evse_id": self.evse.evseId,
+                    "evse_uuid": self.evse.id,
+                    "city": self.charger.address.city,
+                    "country": self.charger.address.country,
+                    "number": self.charger.address.number,
+                    "street": self.charger.address.street,
+                    "zip": self.charger.address.zip,
+                    "connectivity": self.charger.connectivity,
+                    "longitude": self.charger.coordinates.longitude,
+                    "latitude": self.charger.coordinates.latitude,
+                    "uuid": self.charger.id,
+                    "model": self.charger.model,
+                    "name": self.charger.name,
+                    "plug_and_charge_capable": self.charger.plugAndCharge.capable,
+                    "serial": self.charger.serial,
+                    "sharing": self.charger.sharing,
+                    "vendor": self.charger.vendor,
+                }
+                if self.evse.connectors:
+                    connector = self.evse.connectors[0]
+                    extra_data["connector_power_type"] = connector.electricCurrentType
+                    extra_data["connector_max_current"] = connector.maxCurrentInAmps
+                    extra_data["connector_max_power"] = connector.maxPowerInWatts
+                    extra_data["connector_phases"] = connector.numberOfPhases
+
+                if self.evse.statusDetails.rfid:
+                    extra_data["connected_card_rfid"] = self.evse.statusDetails.rfid
+                if self.evse.statusDetails.printedNumber:
+                    extra_data[
+                        "connected_card_number"
+                    ] = self.evse.statusDetails.printedNumber
+                self._attr_extra_state_attributes = extra_data
+
+        except AttributeError as err:
+            _LOGGER.error(err)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._read_coordinator_data()
+        self.async_write_ha_state()
+
+    async def toggle_session(self, **kwargs: str) -> bool:
+        """Handle the service call to toggle the charge point session."""
+        toggle = kwargs.get("toggle", "")
+        if toggle not in ["start", "stop"]:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_toggle",
+                translation_placeholders={"toggle": toggle},
+            )
+
+        card = kwargs.get("card", "")
+
+        success = await self.coordinator.toggle_session(self.charger.id, card, toggle)
+        if not success:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="session_toggle",
+                translation_placeholders={
+                    "toggle": toggle,
+                    "charger": self.charger.id,
+                    "rfid": card,
+                },
+            )
+        return True
 
 
-    @property
-    def icon(self) -> str:
-        """Shows the correct icon for container."""
-        return "mdi:gas-station"
-        
-    @property
-    def unique_id(self) -> str:
-        """Return the name of the sensor."""
-        name = f"{NAME} {self._fueltype.name_lowercase.replace('_',' ')}"
-        return (name)
+class EVCardText(
+    CoordinatorEntity[EVRechargeUserDataUpdateCoordinator],
+    TextEntity,
+):
+    """This sensor represent a charge card."""
 
-    @property
-    def name(self) -> str:
-        # return self.unique_id.title()
-        if self._friendly_name_prediction_template_choice:
-            return friendly_name_template(self._friendly_name_prediction_template, self.extra_state_attributes)
-        else:
-            return self.unique_id.title()
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return the state attributes."""
-        return {
-            ATTR_ATTRIBUTION: NAME,
-            "last update": self._last_update,
-            "fueltype": self._fueltype.name_lowercase.split('_')[0].title(),
-            "trend": f"{self._trend}%",
-            "date": self._date
-        }
-
-   
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        # _LOGGER.debug(f"official device_info: {self._data.name}")
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (NAME, self._data.unique_id)
-            },
-            name=f"{NAME} {self._data._postalcode} {self._data._country}",
-            model=f"{self._data._postalcode} {self._data._country}",
-            manufacturer= NAME
+    def __init__(
+        self, card_id: str, coordinator: EVRechargeUserDataUpdateCoordinator
+    ) -> None:
+        """Initialize the Sensor."""
+        super().__init__(coordinator)
+        self.coordinator = coordinator
+        self.card_id = card_id
+        self.card = self._get_card()
+        self._attr_unique_id = self.card.uuid
+        self._attr_attribution = "account.shellrecharge.com"
+        self._attr_has_entity_name = False
+        self._attr_name = self.card.name
+        self._attr_device_info = DeviceInfo(
+            name=self._attr_name,
+            identifiers={(DOMAIN, str(self._attr_name))},
+            entry_type=None,
+            manufacturer="Shell",
         )
+        self._attr_native_value = self.card.rfid
+        self._attr_icon = "mdi:account-credit-card"
 
-    @property
-    def unit(self) -> int:
-        """Unit"""
-        return int
+    def _get_card(self) -> ChargeToken:
+        assets: DetailedAssets = self.coordinator.data
+        if assets:
+            for card in assets.chargeTokens:
+                if card.uuid == self.card_id:
+                    return card
+        raise HomeAssistantError("Charge card not found in coordinator cache")
 
-    @property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement this sensor expresses itself in."""
-        return "%"
 
-    @property
-    def device_class(self):
-        return SensorDeviceClass.MONETARY
-        
+class EVRechargeSensor(
+    CoordinatorEntity[EVRechargePublicDataUpdateCoordinator],
+    SensorEntity,
+):
+    """Main feature of this integration. This sensor represents an EVSE and shows its realtime availability status."""
 
-class ComponentOilPredictionSensor(Entity):
-    def __init__(self, data, fueltype: ConnectorTypes, quantity):
-        self._data = data
-        self._fueltype = fueltype
-        self._quantity = quantity
-        self._friendly_name_prediction_template = self._data._friendly_name_prediction_template
-        self._friendly_name_prediction_template_choice = self._data._friendly_name_prediction_template_choice
-        
-        
-        self._fuelname = None
-        self._last_update = None
-        self._price = None
-        self._trend = None
-        self._date = None
-        self._officialPriceToday = None
-        self._officialPriceTodayDate = None
-        self._price_unit = data._price_unit
-        self._price_unit_per = data._price_unit_per
-        
+    def __init__(
+        self,
+        evse_id: EvseId,
+        coordinator: EVRechargePublicDataUpdateCoordinator,
+    ) -> None:
+        """Initialize the Sensor."""
+        super().__init__(coordinator)
+        self.evse_id = evse_id
+        self.coordinator = coordinator
+        self.location: Location = self.coordinator.data
+        self._attr_unique_id = f"{evse_id}-charger"
+        self._attr_attribution = "shellrecharge.com"
+        self._attr_device_class = SensorDeviceClass.ENUM
+        self._attr_native_unit_of_measurement = None
+        self._attr_state_class = None
+        if hasattr(self.location, "suboperatorName") and self.location.suboperatorName:
+            operator = self.location.suboperatorName
+        else:
+            operator = self.location.operatorName
+        self._attr_has_entity_name = False
+        self._attr_name = f"{operator} {self.location.address.streetAndNumber} {self.location.address.city}"
+        self._attr_device_info = DeviceInfo(
+            name=self._attr_name,
+            identifiers={(DOMAIN, self._attr_name)},
+            entry_type=None,
+            manufacturer=operator,
+        )
+        self._attr_options = list(typing.get_args(Status))
+        self._read_coordinator_data()
 
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._trend
+    def _get_evse(self) -> Any:
+        location: Location = self.coordinator.data
+        if location:
+            for evse in location.evses:
+                if evse.uid == self.evse_id:
+                    return evse
+        return None
 
-    async def async_update(self):
-        await self._data.update()
-        self._last_update =  self._data._lastupdate
-        
+    def _choose_icon(self, connectors: list[Connector]) -> str:
+        iconmap: dict[str, str] = {
+            "Type1": "mdi:ev-plug-type1",
+            "Type2": "mdi:ev-plug-type2",
+            "Type3": "mdi:ev-plug-type2",
+            "Type1Combo": "mdi:ev-plug-ccs1",
+            "Type2Combo": "mdi:ev-plug-ccs2",
+            "SAEJ1772": "mdi:ev-plug-chademo",
+            "TepcoCHAdeMO": "mdi:ev-plug-chademo",
+            "Tesla": "mdi:ev-plug-tesla",
+            "Domestic": "mdi:power-socket-eu",
+            "Unspecified": "mdi:ev-station",
+        }
+        if len(connectors) != 1:
+            return "mdi:ev-station"
+        return iconmap.get(connectors[0].connectorType, "mdi:ev-station")
+
+    def _read_coordinator_data(self) -> None:
+        """Read data from shell recharge ev."""
+        evse = self._get_evse()
+        location: Location = self.coordinator.data
+        _LOGGER.debug(evse)
+
         try:
-            priceinfo = self._data._price_info.get(self._fueltype)
-        
-            code = self._fueltype.code
-            
-            if int(self._quantity) < 2000:
-                code += "Inf2000"
-            else:
-                code += "Sup2000"
-            
-            table = priceinfo.get("data").get("table")
-            # _LOGGER.debug(f"{NAME} code {code} table: {table}")
-            
-            todayPrice = 0
-            tomorrowPrice = 0
-            
-            for element in table:
-                if element.get("code").lower() == code.lower():
-                    self._fuelname = element.get("name")
-                    if element.get("data")[1]:
-                        todayPrice = element.get("data")[1].get("price")
-                    if element.get("data")[2]:
-                        tomorrowPrice = element.get("data")[2].get("price")
-                    elif element.get("data")[1]:
-                        tomorrowPrice = element.get("data")[1].get("price")
-                    break
-            
-            self._price = tomorrowPrice
-            
-            if todayPrice != 0:
-                self._trend = round(100 * ((tomorrowPrice - todayPrice) / todayPrice),3)
-                self._officialPriceToday = todayPrice
-            
-            if len(priceinfo.get("data").get("heads")) > 1:
-                self._date = priceinfo.get("data").get("heads")[2].get("name")
-                self._officialPriceTodayDate = priceinfo.get("data").get("heads")[1].get("name")
-        except Exception as e:
-            _LOGGER.error(f"ERROR: prediction failed for {self._fueltype.name_lowercase} : {e}")
-        
-            
-        
-    async def async_will_remove_from_hass(self):
-        """Clean up after entity before removal."""
-        _LOGGER.info("async_will_remove_from_hass " + NAME)
-        self._data.clear_session()
+            if evse:
+                self._attr_native_value = evse.status
+                self._attr_icon = self._choose_icon(evse.connectors)
+                connector = evse.connectors[0]
+                extra_data = {
+                    "address": location.address.streetAndNumber,
+                    "city": location.address.city,
+                    "postal_code": location.address.postalCode,
+                    "country": location.address.country,
+                    "latitude": location.coordinates.latitude,
+                    "longitude": location.coordinates.longitude,
+                    "operator_name": location.operatorName,
+                    "suboperator_name": location.suboperatorName,
+                    "support_phonenumber": location.supportPhoneNumber,
+                    "tariff_startfee": connector.tariff.startFee,
+                    "tariff_per_kwh": connector.tariff.perKWh,
+                    "tariff_per_minute": connector.tariff.perMinute,
+                    "tariff_currency": connector.tariff.currency,
+                    "tariff_updated": connector.tariff.updated,
+                    "tariff_updated_by": connector.tariff.updatedBy,
+                    "tariff_structure": connector.tariff.structure,
+                    "connector_power_type": connector.electricalProperties.powerType,
+                    "connector_voltage": connector.electricalProperties.voltage,
+                    "connector_ampere": connector.electricalProperties.amperage,
+                    "connector_max_power": connector.electricalProperties.maxElectricPower,
+                    "connector_fixed_cable": connector.fixedCable,
+                    "accessibility": location.accessibilityV2.status,
+                    "external_id": str(location.externalId),
+                    "evse_id": str(evse.evseId),
+                    "opentwentyfourseven": location.openTwentyFourSeven,
+                    # "opening_hours": location.openingHours,
+                    # "predicted_occupancies": location.predictedOccupancies,
+                }
+                self._attr_extra_state_attributes = extra_data
+        except AttributeError as err:
+            _LOGGER.error(err)
 
-
-    @property
-    def icon(self) -> str:
-        """Shows the correct icon for container."""
-        return "mdi:barrel"
-        
-    @property
-    def unique_id(self) -> str:
-        """Return the name of the sensor."""
-        name = f"{NAME} {self._fueltype.name_lowercase.split('_')[0]}"
-        if self._quantity != 0:
-            name += f" {self._quantity}l"
-        name += " prediction"
-        return (name)
-
-    @property
-    def name(self) -> str:
-        # return self.unique_id.title()
-        if self._friendly_name_prediction_template_choice:
-            return friendly_name_template(self._friendly_name_prediction_template, self.extra_state_attributes)
-        else:
-            return self.unique_id.title()
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return the state attributes."""
-        return {
-            ATTR_ATTRIBUTION: NAME,
-            "last update": self._last_update,
-            "fueltype": self._fueltype.name_lowercase.split('_')[0].title(),
-            "fuelname": self._fuelname,
-            "trend": self._trend,
-            "price": f"{self._price}{self._price_unit}",
-            "date": self._date,
-            "current official max price": f"{self._officialPriceToday} {self._price_unit_per}",
-            "current official max price date": {self._officialPriceTodayDate},
-            "quantity": self._quantity
-        }
-
-   
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        # _LOGGER.debug(f"official device_info: {self._data.name}")
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (NAME, self._data.unique_id)
-            },
-            name=f"{NAME} {self._data._postalcode} {self._data._country}",
-            model=f"{self._data._postalcode} {self._data._country}",
-            manufacturer= NAME
-        )
-
-    @property
-    def unit(self) -> int:
-        """Unit"""
-        return int
-
-    @property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement this sensor expresses itself in."""
-        return "%"
-
-    @property
-    def device_class(self):
-        return SensorDeviceClass.MONETARY
-        
-        
-class ComponentFuelOfficialSensor(Entity):
-    def __init__(self, data, fueltype):
-        self._data = data
-        self._fueltype = fueltype
-        self._country = data._country
-        
-        
-        self._fuelname = None
-        self._last_update = None
-        self._price = None
-        self._date = None
-        self._priceNext = None
-        self._dateNext = None
-        self._price_unit = data._price_unit
-        self._price_unit_per = data._price_unit_per
-        
-        self._friendly_name_official_template = self._data._friendly_name_official_template
-        self._friendly_name_official_template_choice = self._data._friendly_name_official_template_choice
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._price
-
-    async def async_update(self):
-        await self._data.update()
-        self._last_update =  self._data._lastupdate
-        
-        try:
-            priceinfo = self._data._price_info.get(self._fueltype)
-            # _LOGGER.debug(f"official priceinfo: {priceinfo}")
-            
-            if self._country.lower() in ['be','fr','lu']:
-                self._price= priceinfo.get(self._fueltype.sp_code)
-                self._date = priceinfo.get('Brandstof')
-                
-                self._priceNext= priceinfo.get(self._fueltype.sp_code+"Next")
-                self._dateNext = priceinfo.get('BrandstofNext')
-            elif self._country.lower() == 'nl':
-                self._price= priceinfo.get(self._fueltype.nl_name).get("GLA")
-                self._date = priceinfo.get(self._fueltype.nl_name).get("date")
-                
-                self._priceNext= None
-                self._dateNext = None
-        except Exception as e:
-            _LOGGER.error(f"ERROR: official failed for {self._fueltype.name_lowercase} : {e}")
-            
-        
-            
-        
-    async def async_will_remove_from_hass(self):
-        """Clean up after entity before removal."""
-        _LOGGER.info("async_will_remove_from_hass " + NAME)
-        self._data.clear_session()
-
-
-    @property
-    def icon(self) -> str:
-        """Shows the correct icon for container."""
-        return "mdi:gas-station"
-        
-    @property
-    def unique_id(self) -> str:
-        """Return the name of the sensor."""
-        name = f"{NAME} {self._fueltype.name_lowercase.replace('_',' ')}"
-        if self._country.lower() in ['nl']:
-            name = f"{name} {self._country}"
-        # _LOGGER.debug(f"official name: {name}")
-        return (name)
-
-    @property
-    def name(self) -> str:
-        # return self.unique_id.title()
-        if self._friendly_name_official_template_choice:
-            return friendly_name_template(self._friendly_name_official_template, self.extra_state_attributes)
-        else:
-            return self.unique_id.title()
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return the state attributes."""
-        return {
-            ATTR_ATTRIBUTION: NAME,
-            "last update": self._last_update,
-            "fueltype": self._fueltype.name_lowercase.replace('_',' ').replace('Official ','').title(),
-            "price": f"{self._price}",
-            "date": self._date,
-            "country": self._country,
-            "price next": f"{self._priceNext}",
-            "date next": f"{self._dateNext}"
-        }
-
-   
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        # _LOGGER.debug(f"official device_info: {self._data.name}")
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (NAME, self._data.unique_id)
-            },
-            name=f"{NAME} {self._data._postalcode} {self._data._country}",
-            model=f"{self._data._postalcode} {self._data._country}",
-            manufacturer= NAME
-        )
-
-    @property
-    def unit(self) -> int:
-        """Unit"""
-        return int
-
-    @property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement this sensor expresses itself in."""
-        return self._price_unit_per
-
-    @property
-    def device_class(self):
-        return SensorDeviceClass.MONETARY
-        
-           
-def friendly_name_template(template, attributes):
-    return template.format(**attributes)
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._read_coordinator_data()
+        self.async_write_ha_state()
