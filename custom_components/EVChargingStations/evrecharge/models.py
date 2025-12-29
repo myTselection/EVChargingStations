@@ -1,6 +1,8 @@
 """Models for pydantic parsing."""
 
-from typing import Literal, Optional
+from typing import List, Literal, Optional
+from typing import TypedDict
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -49,8 +51,14 @@ class Tariff(BaseModel):
     updatedBy: UpdatedBy
     structure: str
 
+class EnecoTariff(BaseModel):
+    startTariff: float
+    chargingCosts: float
+    chargingTimeCosts: bool
+    parkingTimeCosts: bool
+    description: Optional[str]
 
-class Connector(BaseModel):
+class ShellConnector(BaseModel):
     """Connector instance."""
 
     uid: int
@@ -63,26 +71,45 @@ class Connector(BaseModel):
     updatedBy: UpdatedBy
     externalTariffId: Optional[str] = ""
 
+class EnecoConnector(BaseModel):
+    id: str
+    standard: str
+    format: str
+    powerType: str
+    maxPower: Optional[int] = Field(..., description="Max power in watts")
 
-class Evse(BaseModel):
+class ShellEvse(BaseModel):
     """Evse instance."""
 
     uid: int
     externalId: str
     evseId: str
     status: Status
-    connectors: list[Connector]
+    connectors: list[ShellConnector]
     authorizationMethods: list[str]
     physicalReference: str
     updated: DateTimeISO8601
 
+class EnecoEvse(BaseModel):
+    uid: str
+    status: str
+    evseId: str
+    lastUpdated: datetime
+    physicalReference: Optional[str]
+    connectors: List[EnecoConnector]
+    prices: Optional[EnecoTariff]
 
-class Coordinates(BaseModel):
-    """Location."""
+
+class CoordinatesLongName(BaseModel):
+    """Location used by Shell """
 
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
 
+class CoordinatesShortName(BaseModel):
+    """Location used by Eneco """
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
 
 class Address(BaseModel):
     """Address."""
@@ -90,7 +117,7 @@ class Address(BaseModel):
     streetAndNumber: str
     postalCode: str
     city: str
-    country: str
+    country: Optional[str]
 
 
 class Accessibility(BaseModel):
@@ -124,18 +151,18 @@ class PredictedOccupancies(BaseModel):
     endTime: str
 
 
-class ChargingStation(BaseModel):
+class ShellChargingStation(BaseModel):
     """Location data."""
 
     uid: int
     externalId: int | str
-    coordinates: Coordinates
+    coordinates: CoordinatesLongName
     operatorName: str
     operatorId: Optional[str] = ""
     address: Address
     accessibility: Accessibility
     accessibilityV2: AccessibilityV2
-    evses: list[Evse]
+    evses: list[ShellEvse]
     openTwentyFourSeven: Optional[bool] = True
     openingHours: Optional[list[OpeningHours]] = []
     updated: DateTimeISO8601
@@ -147,3 +174,41 @@ class ChargingStation(BaseModel):
     countryCode: str
     partyId: str
     roamingSource: str
+
+
+class Coords(TypedDict):
+    """Coordinates and bounds."""
+
+    lat: float
+    lon: float
+    bounds: dict[str, float]
+
+
+class EnecoEvseSummary(BaseModel):
+    total: int
+    available: int
+    maxSpeed: Optional[int]
+    minSpeed: Optional[int]
+    isUnlimited: bool
+    isLimited: bool
+    isUnknown: bool
+
+class Owner(BaseModel):
+    name: str
+    website: Optional[str]
+
+class EnecoChargingStation(BaseModel):
+    id: str
+    name: Optional[str]
+    address: Address
+    ownerName: Optional[str]
+    isAllowed: bool
+    accessType: str
+    isTwentyFourSeven: bool
+    coordinates: CoordinatesShortName
+    evseSummary: EnecoEvseSummary
+    owner: Owner
+    source: str
+    evses: List[EnecoEvse]
+    facilities: List[str]
+    distance: Optional[float]

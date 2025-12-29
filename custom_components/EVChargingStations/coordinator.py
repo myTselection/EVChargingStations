@@ -5,15 +5,20 @@ from asyncio.exceptions import CancelledError
 
 from aiohttp.client_exceptions import ClientError
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .evrecharge import EVApi, ChargingStation, LocationEmptyError
+from homeassistant.helpers.location import find_coordinates
+from .evrecharge import EVApi, ShellChargingStation, LocationEmptyError
 from .evrecharge.user import AssetsEmptyError, DetailedChargePointEmptyError, User
 from .evrecharge.usermodels import DetailedAssets
 from .location import LocationSession
+from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator, WRCError
 
-from .const import DOMAIN, UPDATE_INTERVAL, SerialNumber
+
+from .const import DOMAIN, UPDATE_INTERVAL, SerialNumber,CONF_ORIGIN, CONF_API_KEY, CONF_PASSWORD, CONF_EMAIL, CONF_SERIAL_NUMBER, CONF_SINGLE, CONF_PUBLIC
 
 _LOGGER = logging.getLogger(__name__)
+_GEO_API_KEY = ""
 
 
 class EVRechargeUserDataUpdateCoordinator(DataUpdateCoordinator[DetailedAssets]):
@@ -81,7 +86,7 @@ class EVRechargeUserDataUpdateCoordinator(DataUpdateCoordinator[DetailedAssets])
         )
 
 
-class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[ChargingStation]):
+class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[ShellChargingStation]):
     """Handles data updates for public chargers."""
 
     def __init__(
@@ -97,7 +102,7 @@ class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[ChargingStatio
         self.api = api
         self.serial_number = serial_number
 
-    async def _async_update_data(self) -> ChargingStation:
+    async def _async_update_data(self) -> ShellChargingStation:
         """Fetch data from API endpoint.
 
         This is the place to pre-process the data to lookup tables
@@ -105,7 +110,7 @@ class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[ChargingStatio
         """
         data = None
         try:
-            data = await self.api.location_by_id(self.serial_number)
+            data = await self.api.station_by_id(self.serial_number)
         except LocationEmptyError as exc:
             _LOGGER.error(
                 "Error occurred while fetching data for charger(s) %s, not found, or serial is invalid",
@@ -153,18 +158,22 @@ class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[ChargingStatio
 class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
     """Handles data updates for public chargers."""
 
+    config_entry: ConfigEntry
+
     def __init__(
-        self, hass: HomeAssistant, api: EVApi, resolved_origin: str
+        self, hass: HomeAssistant, api: EVApi, config_entry: ConfigEntry, routeCalculatorClient: WazeRouteCalculator
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
+            config_entry=config_entry,
             update_interval=UPDATE_INTERVAL,
         )
         self.api = api
-        self.resolved_origin = resolved_origin
+        self._origin = config_entry.data[CONF_PUBLIC].get(CONF_ORIGIN)
+        self._routeCalculatorClient = routeCalculatorClient
 
     async def _async_update_data(self):
         """Fetch data from API endpoint.
@@ -173,36 +182,44 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         so entities can quickly look up their data.
         """
         data = None
+        
+        resolved_origin = find_coordinates(self.hass, self._origin)
+        origin_coordinates = await self._routeCalculatorClient._ensure_coords(resolved_origin)
+        _LOGGER.debug(f"coordinator origin_coordinates: {origin_coordinates}")
         try:
-            data = await self.api.location_by_id(self.serial_number)
+            data = await self.api.nearby_stations(origin_coordinates)
+            _LOGGER.info(f"nearby_stations: {data}")
+
         except LocationEmptyError as exc:
             _LOGGER.error(
-                "Error occurred while fetching data for charger(s) %s, not found, or serial is invalid",
-                self.serial_number,
+                "Error occurred while fetching data for charger(s) %s, not found, or coordinates are invalid",
+                resolved_origin,
             )
             raise UpdateFailed() from exc
         except CancelledError as exc:
             _LOGGER.error(
                 "CancelledError occurred while fetching data for charger(s) %s",
-                self.serial_number,
+                resolved_origin,
             )
             raise UpdateFailed() from exc
         except TimeoutError as exc:
             _LOGGER.error(
                 "TimeoutError occurred while fetching data for charger(s) %s",
-                self.serial_number,
+                resolved_origin,
             )
             raise UpdateFailed() from exc
         except ClientError as exc:
             _LOGGER.error(
-                "ClientError occurred while fetching data for charger(s) %s",
-                self.serial_number,
+                "ClientError occurred while fetching data for charger(s) %s: %s",
+                resolved_origin,
+                exc,
+                exc_info=True,
             )
             raise UpdateFailed() from exc
         except Exception as exc:
             _LOGGER.error(
                 "Unexpected error occurred while fetching data for charger(s) %s: %s",
-                self.serial_number,
+                resolved_origin,
                 exc,
                 exc_info=True,
             )
@@ -211,7 +228,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         if data is None:
             _LOGGER.error(
                 "API returned None data for charger(s) %s",
-                self.serial_number,
+                resolved_origin,
             )
             raise UpdateFailed("API returned None data")
 

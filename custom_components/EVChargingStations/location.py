@@ -44,13 +44,6 @@ def check_settings(config, hass):
         return True
         
 
-class Coords(TypedDict):
-    """Coordinates and bounds."""
-
-    lat: float
-    lon: float
-    bounds: dict[str, float]
-
 
 class ConnectorTypes(Enum):
     ELECTRIC_T1 = "ET1",0,"","","",""
@@ -62,9 +55,15 @@ class ConnectorTypes(Enum):
         return self.name.lower()
     
 
+class Coords(TypedDict):
+    """Coordinates and bounds."""
+
+    lat: float
+    lon: float
+    bounds: dict[str, float]
 
 class LocationSession(object):
-    def __init__(self, GEO_API_KEY):
+    def __init__(self, GEO_API_KEY=""):
         self.s = requests.Session()
         self.s.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
         self.s.headers["Referer"] = "https://homeassistant.io"

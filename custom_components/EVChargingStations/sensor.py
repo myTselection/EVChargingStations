@@ -17,12 +17,13 @@ from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .evrecharge.models import ChargingStation, Status, Connector
+from .evrecharge.models import ShellChargingStation, Status, ShellConnector
 from .evrecharge.usermodels import ChargePointDetailedStatus, ChargeToken, DetailedAssets, DetailedChargePoint, DetailedEvse
 
 from . import (
     EVRechargePublicDataUpdateCoordinator,
     EVRechargeUserDataUpdateCoordinator,
+    StationsPublicDataUpdateCoordinator
 )
 from .const import DOMAIN, EvseId, EVRechargeEntityFeature
 
@@ -51,10 +52,17 @@ async def async_setup_entry(
     evse_id = ""
 
     if coordinator.data:
-        if isinstance(coordinator, EVRechargePublicDataUpdateCoordinator):
+        if isinstance(coordinator, StationsPublicDataUpdateCoordinator):
+            for evse in coordinator.data:
+                evse_id = evse.id
+                sensor: SensorEntity = EVShellRechargeSensor(
+                    evse_id=evse_id, coordinator=coordinator
+                )
+                entities.append(sensor)
+        elif isinstance(coordinator, EVRechargePublicDataUpdateCoordinator):
             for evse in coordinator.data.evses:
                 evse_id = evse.uid
-                sensor: SensorEntity = EVRechargeSensor(
+                sensor: SensorEntity = EVShellRechargeSensor(
                     evse_id=evse_id, coordinator=coordinator
                 )
                 entities.append(sensor)
@@ -243,7 +251,7 @@ class EVCardText(
         raise HomeAssistantError("Charge card not found in coordinator cache")
 
 
-class EVRechargeSensor(
+class EVShellRechargeSensor(
     CoordinatorEntity[EVRechargePublicDataUpdateCoordinator],
     SensorEntity,
 ):
@@ -258,7 +266,7 @@ class EVRechargeSensor(
         super().__init__(coordinator)
         self.evse_id = evse_id
         self.coordinator = coordinator
-        self.location: ChargingStation = self.coordinator.data
+        self.location: ShellChargingStation = self.coordinator.data
         self._attr_unique_id = f"{evse_id}-charger"
         self._attr_attribution = "shellrecharge.com"
         self._attr_device_class = SensorDeviceClass.ENUM
@@ -280,14 +288,14 @@ class EVRechargeSensor(
         self._read_coordinator_data()
 
     def _get_evse(self) -> Any:
-        location: ChargingStation = self.coordinator.data
+        location: ShellChargingStation = self.coordinator.data
         if location:
             for evse in location.evses:
                 if evse.uid == self.evse_id:
                     return evse
         return None
 
-    def _choose_icon(self, connectors: list[Connector]) -> str:
+    def _choose_icon(self, connectors: list[ShellConnector]) -> str:
         iconmap: dict[str, str] = {
             "Type1": "mdi:ev-plug-type1",
             "Type2": "mdi:ev-plug-type2",
@@ -307,7 +315,7 @@ class EVRechargeSensor(
     def _read_coordinator_data(self) -> None:
         """Read data from shell recharge ev."""
         evse = self._get_evse()
-        location: ChargingStation = self.coordinator.data
+        location: ShellChargingStation = self.coordinator.data
         _LOGGER.debug(evse)
 
         try:
