@@ -58,14 +58,17 @@ async def async_setup_entry(
             for field_name, station in nearestChargingStations.__dict__.items():
                 if station is not None:
                     try:
-                        _LOGGER.info(f"field_name: {field_name}, station value: {station}")
+                        _LOGGER.debug(f"field_name: {field_name}, station value: {station}")
                         sensor_type = StationSensorType(field_name)
-                        for evse in station.evses:
-                            evse_id = evse.uid
-                            sensor: SensorEntity = NearestSensor(
-                                evse_id=evse_id, coordinator=coordinator, type=sensor_type
-                            )
-                            entities.append(sensor)
+                        sensor: SensorEntity = NearestSensor(coordinator=coordinator, type=sensor_type)
+                        entities.append(sensor)
+                        # for evse in station.evses:
+                        #     _LOGGER.debug(f"field_name: {field_name}, station value: {station}, evse.uid {evse.uid}")
+                        #     evse_id = evse.uid
+                        #     sensor: SensorEntity = NearestSensor(
+                        #         evse_id=evse_id, coordinator=coordinator, type=sensor_type
+                        #     )
+                        #     entities.append(sensor)
                     except ValueError:
                         continue  # field not represented in enum
 
@@ -260,6 +263,9 @@ class EVCardText(
                     return card
         raise HomeAssistantError("Charge card not found in coordinator cache")
 
+def snake_to_title(value: str) -> str:
+    words = value.split("_")
+    return " ".join(word.capitalize() for word in words)
 
 class NearestSensor(
     CoordinatorEntity[StationsPublicDataUpdateCoordinator],
@@ -269,19 +275,23 @@ class NearestSensor(
 
     def __init__(
         self,
-        evse_id: EvseId,
+        # evse_id: EvseId,
         coordinator: StationsPublicDataUpdateCoordinator,
         type: StationSensorType,
     ) -> None:
         """Initialize the Sensor."""
         super().__init__(coordinator)
-        self.evse_id = evse_id
+        # self.evse_id = evse_id
         self.coordinator = coordinator
         self.type = type
         self.nearestChargingStations: NearestChargingStations = self.coordinator.data
         self.station: EnecoChargingStation = self.getStationForType(self.nearestChargingStations, type)
         
-        self._attr_unique_id = f"{evse_id}-charger"
+        # self._attr_name = f"{operator} {self.station.address.streetAndNumber} {self.station.address.city}{' ' + self.station.address.country if hasattr(self.station.address, "country") else ''}"
+        # self._attr_name = self.station.name
+        self._attr_name = f"{snake_to_title(self.type.value)} {self.station.name}"
+        self._attr_has_entity_name = False
+        self._attr_unique_id = self.type.value
         self._attr_attribution = "eneco-emobility.com"
         self._attr_device_class = SensorDeviceClass.ENUM
         self._attr_native_unit_of_measurement = None
@@ -290,12 +300,9 @@ class NearestSensor(
             operator = self.station.ownerName
         else:
             operator = self.station.ownerName
-        self._attr_has_entity_name = False
-        # self._attr_name = f"{operator} {self.station.address.streetAndNumber} {self.station.address.city}{' ' + self.station.address.country if hasattr(self.station.address, "country") else ''}"
-        self._attr_name = self.station.name
         self._attr_device_info = DeviceInfo(
             name=self._attr_name,
-            identifiers={(DOMAIN, self._attr_name)},
+            identifiers={(DOMAIN, self._attr_unique_id)},
             entry_type=None,
             manufacturer=operator,
         )
@@ -303,6 +310,7 @@ class NearestSensor(
         self._read_coordinator_data()
 
     def getStationForType(self, nearestChargingStations: NearestChargingStations, type: str) -> EnecoChargingStation | None:
+        # _LOGGER.debug(f"getStationForType: nearestChargingStations: {nearestChargingStations}, type: {type}")
         station: EnecoChargingStation = None
         if type == StationSensorType.NEAREST_STATION:
             station = nearestChargingStations.nearest_station
@@ -318,13 +326,6 @@ class NearestSensor(
             station = nearestChargingStations.nearest_available_superhighspeed_station
         return station
 
-    def _get_evse(self) -> EnecoEvse | None:
-        # self.station = self.getStationForType(self.coordinator.data, type)
-        if self.station:
-            for evse in self.station.evses:
-                if evse.uid == self.evse_id:
-                    return evse
-        return None
 
     def _choose_icon(self, connectors: list[EnecoConnector]) -> str:
         iconmap: dict[str, str] = {
@@ -345,11 +346,40 @@ class NearestSensor(
             return "mdi:ev-station"
         return iconmap.get(connectors[0].standard, "mdi:ev-station")
 
+    STATUS_PRIORITY = {
+        "AVAILABLE": 0,
+        "CHARGING": 1,
+        "BLOCKED": 2,
+        "UNAVAILABLE": 3,
+        "OUTOFORDER": 4,
+        "UNKNOWN": 5,
+    }
+    def evse_sort_key(self,evse):
+        max_power = max(
+            (connector.maxPower for connector in evse.connectors),
+            default=0,
+        )
+        status_rank = self.STATUS_PRIORITY.get(evse.status, 99)
+
+        return (-max_power, status_rank)
+    def _get_evse(self) -> EnecoEvse | None:
+        # self.station = self.getStationForType(self.coordinator.data, type)
+        if self.station:
+            
+            filtered_sorted = sorted(self.station.evses, key=self.evse_sort_key)
+            for evse in filtered_sorted:
+                if self.station.evseSummary.available > 0:
+                    if evse.status == "AVAILABLE":
+                        return evse
+                else:
+                    if evse.status != "OUTOFORDER":
+                        return evse
+        return None
     def _read_coordinator_data(self) -> None:
-        """Read data from shell recharge ev."""
-        self.station = self.getStationForType(self.coordinator.data, type)
+        """Read data from ev station."""
+        self.station = self.getStationForType(self.coordinator.data, self.type)
         evse: EnecoEvse = self._get_evse()
-        _LOGGER.debug(evse)
+        _LOGGER.debug(f"_read_coordinator_data: evse: {evse}, station: {self.station}")
 
         try:
             if evse:
@@ -357,14 +387,24 @@ class NearestSensor(
                 self._attr_icon = self._choose_icon(evse.connectors)
                 connector: EnecoConnector = evse.connectors[0]
                 extra_data = {
-                    "address": self.station.address.streetAndNumber,
+                    "address": self.station.address.streetAndHouseNumber,
                     "city": self.station.address.city,
-                    "postal_code": self.station.address.postalCode,
+                    "postal_code": self.station.address.postcode,
                     "country": self.station.address.country,
                     "latitude": self.station.coordinates.lat,
                     "longitude": self.station.coordinates.lng,
+                    "distance": self.station.distance,
                     "operator_name": self.station.ownerName,
-                    "suboperator_name": self.station.owner.name,
+                    # "suboperator_name": self.station.owner.name,
+                    "url": self.station.url,
+                    "facilities": ", ".join(self.station.facilities),
+                    "available_connectors": self.station.evseSummary.available,
+                    "number_of_connectors": self.station.evseSummary.total,
+                    "max_speed kWh": self.station.evseSummary.maxSpeed/1000 if self.station.evseSummary.maxSpeed else None,
+                    "min_speed kWh": self.station.evseSummary.minSpeed/1000 if self.station.evseSummary.minSpeed else None,
+                    "is_unlimited": self.station.evseSummary.isUnlimited,
+                    "is_limited": self.station.evseSummary.isLimited,
+                    "is_unkown": self.station.evseSummary.isUnknown,
                     # "support_phonenumber": self.station.supportPhoneNumber,
                     # "tariff_startfee": connector.tariff.startFee,
                     # "tariff_per_kwh": connector.tariff.perKWh,
@@ -382,7 +422,19 @@ class NearestSensor(
                     "allowed": self.station.isAllowed,
                     "external_id": str(self.station.id),
                     "evse_id": str(evse.evseId),
+                    "status": evse.status,
+                    "last_updated": evse.lastUpdated,
+                    "physical_reference": evse.physicalReference,
+                    "connector_standard": connector.standard,
+                    "connector_type": connector.powerType,
+                    "connector_format": connector.format,
+                    "connector_max_power": connector.maxPower/1000 if connector.maxPower else None,
                     "opentwentyfourseven": self.station.isTwentyFourSeven,
+                    "charging_costs": evse.prices.chargingCosts if evse.prices else None,
+                    "charging_time_costs": evse.prices.chargingTimeCosts if evse.prices else None,
+                    "start_tariff": evse.prices.startTariff if evse.prices else None,
+                    "parking_Time_costs": evse.prices.parkingTimeCosts if evse.prices else None,
+                    "price description": evse.prices.description if evse.prices else None,
                     # "opening_hours": location.openingHours,
                     # "predicted_occupancies": location.predictedOccupancies,
                 }

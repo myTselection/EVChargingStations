@@ -85,9 +85,9 @@ class EVRechargeFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 httpx_client = get_async_client(self.hass)
                 # session = LocationSession()
                 self.routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
-                _LOGGER.info(f"resolved origin: {resolved_origin}, {user_input[CONF_PUBLIC].get(CONF_ORIGIN)}")
+                _LOGGER.debug(f"resolved origin: {resolved_origin}, {user_input[CONF_PUBLIC].get(CONF_ORIGIN)}")
                 origin_coordinates = await self.routeCalculatorClient._ensure_coords(resolved_origin)
-                _LOGGER.info(f"resolved origin: {resolved_origin}, {user_input[CONF_PUBLIC].get(CONF_ORIGIN)}, origin_coordinates: {origin_coordinates}")
+                _LOGGER.debug(f"resolved origin: {resolved_origin}, {user_input[CONF_PUBLIC].get(CONF_ORIGIN)}, origin_coordinates: {origin_coordinates}")
                 await api.countChargingStations(origin_coordinates)
             elif user_input.get(CONF_SINGLE) and user_input[CONF_SINGLE].get(CONF_SERIAL_NUMBER):
                 unique_id = user_input[CONF_SINGLE][CONF_SERIAL_NUMBER]

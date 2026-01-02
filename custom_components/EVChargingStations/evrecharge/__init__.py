@@ -14,13 +14,13 @@ from aiohttp_retry import ExponentialRetry, RetryClient
 from pydantic import ValidationError
 from yarl import URL
 
-from .models import ShellChargingStation, Coords, EnecoChargingStation, NearestChargingStations
+from .models import ShellChargingStation, Coords, EnecoChargingStation, NearestChargingStations, EnecoTariff
 from .user import User
 
 import logging
 
 _LOGGER = logging.getLogger(__name__)
-_RADIUS = 2000
+_RADIUS = 500
 
 class EVApi:
     """Class to make API requests."""
@@ -64,9 +64,9 @@ class EVApi:
         Usually yields list of station object with one or multiple chargers.
         """
         stations: list[EnecoChargingStation]
-        _LOGGER.info(f"searching nearby_stations for coordinates {coordinates}")
+        _LOGGER.debug(f"searching nearby_stations for coordinates {coordinates}")
         stations = await self.getEnecoChargingStations(coordinates)
-        _LOGGER.info(f"nearby_stations found {stations}")
+        # _LOGGER.debug(f"nearby_stations found {stations}")
 
         # sorted_locations = sorted(stations, key=lambda x: x.get("distance", float("inf"), reverse=False))
         filtered_sorted = sorted(
@@ -74,32 +74,51 @@ class EVApi:
             key=lambda x: x.distance if hasattr(x, "distance") and x.distance is not None else float("inf"), reverse=False
         )
 
-        _LOGGER.info(f"filtered_sorted: {filtered_sorted}")
+        # _LOGGER.debug(f"filtered_sorted: {filtered_sorted}")
         
         nearestChargingStations: NearestChargingStations = NearestChargingStations()
 
         for station in filtered_sorted:
-            _LOGGER.info(f"station: {station}")
+            # _LOGGER.debug(f"station: {station}")
+            priceAdded = False
             if nearestChargingStations.nearest_station == None:
+                if not priceAdded:
+                    await self.addEnecoPrices(station)
+                    priceAdded = True 
                 nearestChargingStations.nearest_station = station
             if nearestChargingStations.nearest_available_station == None and station.evseSummary.available > 0:
+                if not priceAdded:
+                    await self.addEnecoPrices(station)
+                    priceAdded = True 
                 nearestChargingStations.nearest_available_station = station
             if nearestChargingStations.nearest_highspeed_station == None and station.evseSummary.maxSpeed > 50000:
+                if not priceAdded:
+                    await self.addEnecoPrices(station)
+                    priceAdded = True 
                 nearestChargingStations.nearest_highspeed_station = station
             if nearestChargingStations.nearest_available_highspeed_station == None and station.evseSummary.maxSpeed > 50000 and station.evseSummary.available > 0:
+                if not priceAdded:
+                    await self.addEnecoPrices(station)
+                    priceAdded = True 
                 nearestChargingStations.nearest_available_highspeed_station = station
             if nearestChargingStations.nearest_superhighspeed_station == None and station.evseSummary.maxSpeed > 100000:
+                if not priceAdded:
+                    await self.addEnecoPrices(station)
+                    priceAdded = True 
                 nearestChargingStations.nearest_superhighspeed_station = station
             if nearestChargingStations.nearest_available_superhighspeed_station == None and station.evseSummary.maxSpeed > 100000 and station.evseSummary.available > 0:
+                if not priceAdded:
+                    await self.addEnecoPrices(station)
+                    priceAdded = True 
                 nearestChargingStations.nearest_available_superhighspeed_station = station
 
             #break when all set
             if nearestChargingStations.nearest_station != None and nearestChargingStations.nearest_available_station != None and nearestChargingStations.nearest_highspeed_station != None and nearestChargingStations.nearest_available_highspeed_station != None and nearestChargingStations.nearest_superhighspeed_station != None and nearestChargingStations.nearest_available_superhighspeed_station != None:
-                _LOGGER.info(f"nearestChargingStations: {nearestChargingStations}")
+                # _LOGGER.debug(f"nearestChargingStations: {nearestChargingStations}")
                 break
 
 
-        _LOGGER.info(f"nearestChargingStations: {nearestChargingStations}")
+        _LOGGER.debug(f"nearestChargingStations: {nearestChargingStations}")
 
         return nearestChargingStations
     
@@ -122,6 +141,7 @@ class EVApi:
 
         # Calculate the distance
         distance = round(earth_radius * c, 2)
+        # _LOGGER.debug(f"distance: {distance}, lat1: {lat1}, lon1: {lon1}, lat2: {lat2}, lon2: {lon2}")
 
         return distance
 
@@ -138,29 +158,37 @@ class EVApi:
     
     # def getChargingStations(self, postalcode, country, town, locationinfo, fueltype: ConnectorTypes, single):
     async def getEnecoChargingStations(self, origin_coordinates) -> list[EnecoChargingStation] | None:
-        # _LOGGER.info(f"Eneco charge points Fueltype: {connector_types} filter {filter} origin: {resolved_origin}")
+        # _LOGGER.debug(f"Eneco charge points Fueltype: {connector_types} filter {filter} origin: {resolved_origin}")
         # header = {"Content-Type": "application/json","Accept": "application/json", "Origin": "https://www.eneco-emobility.com", "Referer": "https://www.eneco-emobility.com/be-nl/chargemap", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36", "X-Requested-With": "XMLHttpRequest"}
         # https://www.eneco-emobility.com/be-nl/chargemap#
 
         header = self.getEnecoHttpHeaders()
         
         all_stations = []
-        all_ids = {}
-        # radius = 0.0044
         locationInfoLat = float(str(origin_coordinates.get('lat')).replace(',','.'))
         locationInfoLon = float(str(origin_coordinates.get('lon')).replace(',','.'))
         
-        _LOGGER.info(f"coordinates: {origin_coordinates}")
-        boundingbox = origin_coordinates.get('bounds')
-        if boundingbox == None or len(boundingbox) == 0:
-            # boundingbox = self.convertLatLonBoundingBox(origin_coordinates.get('lat'), origin_coordinates.get('lon'))            
-            radius = 1000
-            boundingbox = self.create_boundingbox_array(origin_coordinates.get('lat'), origin_coordinates.get('lon'), _RADIUS)
+        # _LOGGER.debug(f"coordinates: {origin_coordinates}")
+        # boundingbox = origin_coordinates.get('bounds')
+        # if boundingbox == None or len(boundingbox) == 0:
+            # boundingbox = self.convertLatLonBoundingBox(origin_coordinates.get('lat'), origin_coordinates.get('lon'))
+        someTypesMissing = True
+        standardSpeedFound = False
+        highspeedFound = False
+        superHighSpeedFound = False
+        standardAvailableSpeedFound = False
+        highspeedAvailableFound = False
+        superHighSpeedAvailableFound = False
+        loop = 1
+        while someTypesMissing:
+            currRadius = _RADIUS * loop
+            loop += 1
+            boundingbox = self.create_boundingbox_array(origin_coordinates.get('lat'), origin_coordinates.get('lon'), currRadius)
             origin_coordinates['bounds'] = boundingbox
-        _LOGGER.info(f"boundingbox: {boundingbox}, coordinates: {origin_coordinates}")
+            # _LOGGER.debug(f"boundingbox: {boundingbox}, coordinates: {origin_coordinates}, radius: {currRadius}")
 
-        # for boundingbox in origin_coordinates.get('bounds'):
-        if boundingbox:
+            # for boundingbox in origin_coordinates.get('bounds'):
+            # if boundingbox:
             # boundingbox = origin_coordinates.get('bounds')
             # _LOGGER.debug(f"Retrieving eneco data, boundingbox: {boundingbox}, radius: {radius}")
 
@@ -173,93 +201,88 @@ class EVApi:
             deault_payload = self.defaultEnecoPayload(origin_coordinates)
             totalEves = await self.countChargingStationsPayload(deault_payload)
             _LOGGER.info(f"Total Eneco EVs: {totalEves}")
-            if totalEves > 0 and totalEves < 1000:
-                eneco_url_polygon = "https://www.eneco-emobility.com/api/chargemap/search-polygon"
-                payload = {
-                    "bounds": deault_payload.get('bounds'),
-                    "filters": {
-                        "availableNow": False, 
-                        "isAllowed": True, 
-                        "speed": [11, 350], 
-                        "connectorTypes": []},
-                    "zoomLevel": 16
-                }
+            if totalEves == 0:
+                continue
+            eneco_url_polygon = "https://www.eneco-emobility.com/api/chargemap/search-polygon"
+            payload = {
+                "bounds": deault_payload.get('bounds'),
+                "filters": {
+                    "availableNow": True if standardSpeedFound and highspeedFound and superHighSpeedFound else False, 
+                    "isAllowed": True, 
+                    "speed": [11 if not standardSpeedFound else 50 if not highspeedFound else 100, 350], 
+                    "connectorTypes": []},
+                "zoomLevel": 16
+            }
+            try:
                 eneco_stations = await self.json_post_with_retry_client(eneco_url_polygon, payload, header)
-                _LOGGER.info(f"Eneco EVs: {eneco_stations}")
-                # if response_polygon.status_code != 200:
-                    # _LOGGER.error(f"ERROR: Eneco URL: {eneco_url_polygon}, {payload}, {response_polygon.text}")
-                # assert response_polygon.status_code == 200
-                for eneco_station in eneco_stations:
-                    station: EnecoChargingStation = EnecoChargingStation.model_validate(eneco_station)
-                    # if station.id in all_ids:
-                        # continue
-                    all_ids[station.id] = eneco_station
-                    evses = station.evses
-                    station_lat = station.coordinates.lat
-                    station_lon = station.coordinates.lng
+            except Exception as e:
+                _LOGGER.debug(f"ERROR: Eneco URL: {eneco_url_polygon}, {payload}, {e}")
+                continue
+            # _LOGGER.debug(f"Eneco EVs: {eneco_stations}")
+            standardSpeedFound = True
+            # if response_polygon.status_code != 200:
+                # _LOGGER.error(f"ERROR: Eneco URL: {eneco_url_polygon}, {payload}, {response_polygon.text}")
+            # assert response_polygon.status_code == 200
+            for eneco_station in eneco_stations[:1000]:
+                station: EnecoChargingStation = EnecoChargingStation.model_validate(eneco_station)
+                # if station.id in all_ids:
+                    # continue
+                station_lat = station.coordinates.lat
+                station_lon = station.coordinates.lng
+                station.url = f"https://www.eneco-emobility.com/be-nl/chargemap#loc={station_lat}%2C{station_lon}%2C17&selected={station.id}"
+                if station.address.country is None and station.evses is not None and len(station.evses) > 0 and station.evses[0].evseId is not None:
+                    station.address.country = station.evses[0].evseId[:2]
 
-                    distance = self.haversine_distance(float(str(station_lat).replace(',','.')), float(str(station_lon).replace(',','.')), locationInfoLat, locationInfoLon)
-                    station.distance = distance
-                    station.source = "Eneco"
-                    getPrices = False
-                    if getPrices:
-                        for evse in evses:
-                            evseId = evse.evseId
-                            if evseId in all_ids:
-                                continue
-                            evse_price_url = "https://www.eneco-emobility.com/api/chargemap/evse-pricing"
-                            payload = {"evseId": evseId, "country": "be"}
-                            eneco_prices = await self.json_post_with_retry_client(evse_price_url, payload, header)
-                            if eneco_prices:
-                                # _LOGGER.debug(f"Eneco prices: {eneco_prices}, distance: {distance}, {payload}")
-                                evse.prices = eneco_prices
-                                all_ids[evseId] = eneco_station
-                    station = EnecoChargingStation.model_validate(eneco_station)
+                distance = self.haversine_distance(float(str(station_lat).replace(',','.')), float(str(station_lon).replace(',','.')), locationInfoLat, locationInfoLon)
+                station.distance = distance
+                station.source = "Eneco"
+                if station.evseSummary is not None:
+                    if station.evseSummary.available > 0:
+                        standardAvailableSpeedFound = True
+                    if station.evseSummary.maxSpeed >= 50000:
+                        highspeedFound = True
+                        if station.evseSummary.available > 0:
+                            highspeedAvailableFound = True
+                    if station.evseSummary.maxSpeed >= 100000:
+                        superHighSpeedFound = True
+                        if station.evseSummary.available > 0:
+                            superHighSpeedAvailableFound = True               
                 all_stations.append(station)
-            radius = radius + 0.0045
+            if highspeedFound and standardSpeedFound and superHighSpeedFound and highspeedAvailableFound and standardAvailableSpeedFound and superHighSpeedAvailableFound:
+                someTypesMissing = False
         return all_stations
 
-        # _LOGGER.debug(f"NL All station data retrieved: {all_stations}")
-
-        # self.add_station_distance(all_stations, 'lat', 'lon', float(str(locationinfo.get('lat')).replace(',','.')), float(str(locationinfo.get('lon')).replace(',','.')))
-        
-
-        # stationdetails = []
-        # for station in all_stations:
-
-        #     station_block = {
-        #         'id': station.get('id'),
-        #         'name': station.get('naam'),
-        #         'url': station.get('owner',{}).get('website',f'https://www.eneco-emobility.com/be-nl/chargemap#loc={station.get('coordinates',{}).get('lat')}%2C{station.get('coordinates',{}).get('lng')}%2C16&selected={station.get('id','')}'),
-        #         'brand': f"{station.get('owner',{}).get('name')} (via Eneco)",
-        #         'address': station.get('address',{}).get('streetAndHouseNumber',''),
-        #         'postalcode': station.get('address',{}).get('postcode'),
-        #         'locality': station.get('address',{}).get('city'),
-        #         'price': 999 if len(station.get('eves',[])) == 0 or not station.get('eves',[])[0].get('prices') else station.get('eves',[])[0].get('prices',{}).get('chargingCosts'),
-        #         'price1h': 999 if len(station.get('eves',[])) == 0 or not station.get('eves',[])[0].get('prices') else float(station.get('eves',[])[0].get('prices',{}).get('startTariff',0)) + float(station.get('eves',[])[0].get('prices',{}).get('chargingCosts')),
-        #         # 'price_changed': block.get('fuelPrice').get('datum'),
-        #         'lat': station.get('coordinates',{}).get('lat'),
-        #         'lon': station.get('coordinates',{}).get('lng'),
-        #         'connector_type': "TODO",
-        #         'distance': station.get('distance'),
-        #         # 'date': block.get('fuelPrice').get('datum'), 
-        #         # 'country': country
-        #         'facilities': ", ".join(station.get('facilities',[])),
-        #     }
-        #     stationdetails.append(station_block)
-        # return stationdetails
-
-    def convertLatLonBoundingBox(self, lat, lon):
-        f_lat = float(lat)
-        f_lon = float(lon)
-        size = 0.002
-        boundingbox = [f_lat-size, #0
-                       f_lat+size, #1
-                       f_lon-size, #2
-                       f_lon+size] #3
-        return boundingbox
-    
-
+    async def addEnecoPrices(self, station: EnecoChargingStation)-> EnecoChargingStation | None:
+        header = self.getEnecoHttpHeaders()
+        evses = station.evses
+        lastConnector = None
+        lastConnectorMaxPower = None
+        lastPrices:EnecoTariff = None
+        for evse in evses:
+            evseId = evse.evseId
+            if evse.prices is not None:
+                continue
+            if evse.connectors is not None and len(evse.connectors) > 0:
+                connector = evse.connectors[0]
+                currConnector = connector.standard
+                currConnectorMaxPower = connector.maxPower
+                if lastPrices is None or currConnector != lastConnector or currConnectorMaxPower != lastConnectorMaxPower:
+                    lastConnector = currConnector
+                    lastConnectorMaxPower = currConnectorMaxPower
+                    evse_price_url = "https://www.eneco-emobility.com/api/chargemap/evse-pricing"
+                    payload = {"evseId": evseId, "country": "be"}
+                    # _LOGGER.debug(f"Eneco prices: {evse_price_url}, payload: {payload}")
+                    eneco_prices = await self.json_post_with_retry_client(evse_price_url, payload, header)
+                    if eneco_prices:
+                        _LOGGER.debug(f"Eneco prices: {eneco_prices}, payload {payload}")
+                        eneco_prices_model = EnecoTariff.model_validate(eneco_prices)
+                        evse.prices = eneco_prices_model
+                        lastPrices = eneco_prices_model
+                else:
+                    evse.prices = lastPrices
+            else:
+                _LOGGER.debug(f"Eneco prices no connectors found: {evse}")
+        return station
     
     def create_boundingbox_array(self, lat, lon, radius_m):
         earth_radius_m = 6371000
@@ -275,7 +298,7 @@ class EVApi:
         ]
     
     def defaultEnecoPayload(self, coordinates: Coords):
-        _LOGGER.info(f"coordinates: {coordinates}")
+        _LOGGER.debug(f"coordinates: {coordinates}")
         boundingbox = coordinates.get('bounds')
         bounds =  {
                     "northWest": [boundingbox[2],boundingbox[1]],
@@ -309,13 +332,13 @@ class EVApi:
 
     def countChargingStations(self, origin_coordinates):
         
-        _LOGGER.info(f"coordinates: {origin_coordinates}")
+        _LOGGER.debug(f"coordinates: {origin_coordinates}")
         boundingbox = origin_coordinates.get('bounds')
         if boundingbox == None or len(boundingbox) == 0:
             # boundingbox = self.convertLatLonBoundingBox(origin_coordinates.get('lat'), origin_coordinates.get('lon'))
             boundingbox = self.create_boundingbox_array(origin_coordinates.get('lat'), origin_coordinates.get('lon'), _RADIUS)
             origin_coordinates['bounds'] = boundingbox
-        _LOGGER.info(f"boundingbox: {boundingbox}, coordinates: {origin_coordinates}")
+        _LOGGER.debug(f"boundingbox: {boundingbox}, coordinates: {origin_coordinates}")
         default_payload = self.defaultEnecoPayload(origin_coordinates)
         return self.countChargingStationsPayload(default_payload)
     
@@ -378,12 +401,14 @@ class EVApi:
                         url,
                     )
         except ValidationError as err:
+            _LOGGER.error(err)
             raise LocationValidationError(err)
         except (
             ClientError,
             TimeoutError,
             CancelledError,
         ) as err:
+            _LOGGER.warning(err)
             # Something else failed
             raise err
         return json_response

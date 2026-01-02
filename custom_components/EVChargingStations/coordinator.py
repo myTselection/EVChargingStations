@@ -189,7 +189,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug(f"coordinator origin_coordinates: {origin_coordinates}")
         try:
             data = await self.api.nearby_stations(origin_coordinates)
-            _LOGGER.info(f"nearby_stations: {data}")
+            # _LOGGER.debug(f"nearby_stations: {data}")
 
         except LocationEmptyError as exc:
             _LOGGER.error(

@@ -53,10 +53,10 @@ class Tariff(BaseModel):
     structure: str
 
 class EnecoTariff(BaseModel):
-    startTariff: float
-    chargingCosts: float
-    chargingTimeCosts: bool
-    parkingTimeCosts: bool
+    startTariff: Optional[float] = 0.0
+    chargingCosts: Optional[float] = 0.0
+    chargingTimeCosts: Optional[bool] = None
+    parkingTimeCosts: Optional[bool] = None
     description: Optional[str]
 
 class ShellConnector(BaseModel):
@@ -223,6 +223,7 @@ class EnecoChargingStation(BaseModel):
     evses: List[EnecoEvse]
     facilities: List[str]
     distance: Optional[float] = None
+    url: Optional[str] = None
 
 class NearestChargingStations(BaseModel):
     nearest_station: Optional[EnecoChargingStation] = None
