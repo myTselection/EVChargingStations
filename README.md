@@ -7,7 +7,7 @@
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/myTselection/EVChargingStations.svg)](https://github.com/myTselection/EVChargingStations/graphs/commit-activity)
 
 # Public EV Charging Stations Home Assistant integration
-Home Assistant custom component to create sensors with information on the cheapest EV Charging Station in a chosen area. This custom component has been built from the ground up to bring public site data to compare and save on your EV prices and integrate this information into Home Assistant. This integration is built against the public websites provided by Eneco.com and other similar sites. Sensors will be created for the currently **cheapest** station in a region (at location, within 5km and within 10km). The cheapest charging station in between two locations can be retrieved too.
+Home Assistant custom component to create sensors with information on the available EV Charging Station in a chosen area. This custom component has been built from the ground up to bring public site data to compare and save on your EV prices and integrate this information into Home Assistant. This integration is built against the public websites provided by Eneco.com and other similar sites. Sensors will be created for nearest stations of different speeds and availability. 
 
 **Currently supporting charging stations in Belgium, France, Luxembourg, Spain, Netherlands, Germany, Italy and on routes.**
 
