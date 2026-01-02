@@ -4,10 +4,11 @@ from typing import List, Literal, Optional
 from typing import TypedDict
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 DateTimeISO8601 = str
-Status = Literal["Available", "Unavailable", "Occupied", "Unknown"]
+ShellStatus = Literal["Available", "Unavailable", "Occupied", "Unknown"]
+EnecoStatus = Literal["AVAILABLE", "CHARGING", "OUTOFORDER", "UNAVAILABLE", "UNKNOWN", "BLOCKED"]
 ConnectorTypes = Literal[
     "Avcon",
     "Domestic",
@@ -84,20 +85,21 @@ class ShellEvse(BaseModel):
     uid: int
     externalId: str
     evseId: str
-    status: Status
+    status: ShellStatus
     connectors: list[ShellConnector]
     authorizationMethods: list[str]
     physicalReference: str
     updated: DateTimeISO8601
 
 class EnecoEvse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     uid: str
-    status: str
-    evseId: str
-    lastUpdated: datetime
-    physicalReference: Optional[str]
+    status: EnecoStatus
+    evseId: Optional[str] = None
+    lastUpdated: Optional[datetime] = None
+    physicalReference: Optional[str] = None
     connectors: List[EnecoConnector]
-    prices: Optional[EnecoTariff]
+    prices: Optional[EnecoTariff] = None
 
 
 class CoordinatesLongName(BaseModel):
@@ -111,13 +113,22 @@ class CoordinatesShortName(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
 
-class Address(BaseModel):
+class ShellAddress(BaseModel):
     """Address."""
 
     streetAndNumber: str
-    postalCode: str
+    postalCode:  Optional[str] = None
     city: str
-    country: Optional[str]
+    country: Optional[str] = None
+
+    
+class EnecoAddress(BaseModel):
+    """Address."""
+
+    streetAndHouseNumber: str
+    postcode:  Optional[str] = None
+    city: str
+    country: Optional[str] = None
 
 
 class Accessibility(BaseModel):
@@ -159,7 +170,7 @@ class ShellChargingStation(BaseModel):
     coordinates: CoordinatesLongName
     operatorName: str
     operatorId: Optional[str] = ""
-    address: Address
+    address: ShellAddress
     accessibility: Accessibility
     accessibilityV2: AccessibilityV2
     evses: list[ShellEvse]
@@ -187,11 +198,11 @@ class Coords(TypedDict):
 class EnecoEvseSummary(BaseModel):
     total: int
     available: int
-    maxSpeed: Optional[int]
-    minSpeed: Optional[int]
-    isUnlimited: bool
-    isLimited: bool
-    isUnknown: bool
+    maxSpeed: Optional[int] = None
+    minSpeed: Optional[int] = None
+    isUnlimited: Optional[bool] = None
+    isLimited: Optional[bool] = None
+    isUnknown: Optional[bool] = None
 
 class Owner(BaseModel):
     name: str
@@ -200,15 +211,23 @@ class Owner(BaseModel):
 class EnecoChargingStation(BaseModel):
     id: str
     name: Optional[str]
-    address: Address
-    ownerName: Optional[str]
+    address: EnecoAddress
+    ownerName: Optional[str] = None
     isAllowed: bool
     accessType: str
-    isTwentyFourSeven: bool
+    isTwentyFourSeven: Optional[bool] = None
     coordinates: CoordinatesShortName
     evseSummary: EnecoEvseSummary
     owner: Owner
-    source: str
+    source: Optional[str] = None
     evses: List[EnecoEvse]
     facilities: List[str]
-    distance: Optional[float]
+    distance: Optional[float] = None
+
+class NearestChargingStations(BaseModel):
+    nearest_station: Optional[EnecoChargingStation] = None
+    nearest_available_station: Optional[EnecoChargingStation] = None
+    nearest_highspeed_station: Optional[EnecoChargingStation] = None
+    nearest_available_highspeed_station: Optional[EnecoChargingStation] = None
+    nearest_superhighspeed_station: Optional[EnecoChargingStation] = None
+    nearest_available_superhighspeed_station: Optional[EnecoChargingStation] = None

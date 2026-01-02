@@ -14,13 +14,13 @@ from aiohttp_retry import ExponentialRetry, RetryClient
 from pydantic import ValidationError
 from yarl import URL
 
-from .models import ShellChargingStation, Coords, EnecoChargingStation
+from .models import ShellChargingStation, Coords, EnecoChargingStation, NearestChargingStations
 from .user import User
 
 import logging
 
 _LOGGER = logging.getLogger(__name__)
-_RADIUS = 1000
+_RADIUS = 2000
 
 class EVApi:
     """Class to make API requests."""
@@ -58,7 +58,7 @@ class EVApi:
 
 
     # async def nearby_stations(self, coordinates: Coords) -> list[ChargingStation] | None :
-    async def nearby_stations(self, coordinates: Coords, filter = "") -> list[EnecoChargingStation] | None :
+    async def nearby_stations(self, coordinates: Coords, filter = "") -> NearestChargingStations | None :
         """
         Perform API request.
         Usually yields list of station object with one or multiple chargers.
@@ -71,42 +71,37 @@ class EVApi:
         # sorted_locations = sorted(stations, key=lambda x: x.get("distance", float("inf"), reverse=False))
         filtered_sorted = sorted(
             stations if filter == "" else (station for station in stations if filter in station.owner.name.lower()),
-            key=lambda x: x.distance if x.distance is not None else float("inf", float("inf")), reverse=False
+            key=lambda x: x.distance if hasattr(x, "distance") and x.distance is not None else float("inf"), reverse=False
         )
 
-        nearest_station:EnecoChargingStation = None
-        nearest_available_station:EnecoChargingStation = None
-        nearest_highspeed_station:EnecoChargingStation = None
-        nearest_available_highspeed_station:EnecoChargingStation = None
-        nearest_superhighspeed_station:EnecoChargingStation = None
-        nearest_available_superhighspeed_station:EnecoChargingStation = None
+        _LOGGER.info(f"filtered_sorted: {filtered_sorted}")
+        
+        nearestChargingStations: NearestChargingStations = NearestChargingStations()
 
         for station in filtered_sorted:
             _LOGGER.info(f"station: {station}")
-            if nearest_station == None:
-                nearest_station = station
-            if nearest_available_station == None and station.evseSummary.available > 0:
-                nearest_available_station = station
-            if nearest_highspeed_station == None and station.evseSummary.maxSpeed > 50000:
-                nearest_highspeed_station = station
-            if nearest_available_highspeed_station == None and station.evseSummary.maxSpeed > 50000 and station.evseSummary.available > 0:
-                nearest_available_highspeed_station = station
-            if nearest_superhighspeed_station == None and station.evseSummary.maxSpeed > 100000:
-                nearest_superhighspeed_station = station
-            if nearest_available_superhighspeed_station == None and station.evseSummary.maxSpeed > 100000 and station.evseSummary.available > 0:
-                nearest_available_superhighspeed_station = station
+            if nearestChargingStations.nearest_station == None:
+                nearestChargingStations.nearest_station = station
+            if nearestChargingStations.nearest_available_station == None and station.evseSummary.available > 0:
+                nearestChargingStations.nearest_available_station = station
+            if nearestChargingStations.nearest_highspeed_station == None and station.evseSummary.maxSpeed > 50000:
+                nearestChargingStations.nearest_highspeed_station = station
+            if nearestChargingStations.nearest_available_highspeed_station == None and station.evseSummary.maxSpeed > 50000 and station.evseSummary.available > 0:
+                nearestChargingStations.nearest_available_highspeed_station = station
+            if nearestChargingStations.nearest_superhighspeed_station == None and station.evseSummary.maxSpeed > 100000:
+                nearestChargingStations.nearest_superhighspeed_station = station
+            if nearestChargingStations.nearest_available_superhighspeed_station == None and station.evseSummary.maxSpeed > 100000 and station.evseSummary.available > 0:
+                nearestChargingStations.nearest_available_superhighspeed_station = station
 
-            if nearest_available_station != None and nearest_available_highspeed_station != None and nearest_available_superhighspeed_station != None:
+            #break when all set
+            if nearestChargingStations.nearest_station != None and nearestChargingStations.nearest_available_station != None and nearestChargingStations.nearest_highspeed_station != None and nearestChargingStations.nearest_available_highspeed_station != None and nearestChargingStations.nearest_superhighspeed_station != None and nearestChargingStations.nearest_available_superhighspeed_station != None:
+                _LOGGER.info(f"nearestChargingStations: {nearestChargingStations}")
                 break
 
-        return {
-            "nearest_station":nearest_station,
-            "nearest_available_station":nearest_available_station,
-            "nearest_highspeed_station":nearest_highspeed_station,
-            "nearest_available_highspeed_station":nearest_available_highspeed_station,
-            "nearest_superhighspeed_station":nearest_superhighspeed_station,
-            "nearest_available_superhighspeed_station":nearest_available_superhighspeed_station
-        }
+
+        _LOGGER.info(f"nearestChargingStations: {nearestChargingStations}")
+
+        return nearestChargingStations
     
     
     def haversine_distance(self, lat1, lon1, lat2, lon2):
@@ -189,25 +184,27 @@ class EVApi:
                         "connectorTypes": []},
                     "zoomLevel": 16
                 }
-                eneco_eves = await self.json_post_with_retry_client(eneco_url_polygon, payload, header)
+                eneco_stations = await self.json_post_with_retry_client(eneco_url_polygon, payload, header)
+                _LOGGER.info(f"Eneco EVs: {eneco_stations}")
                 # if response_polygon.status_code != 200:
                     # _LOGGER.error(f"ERROR: Eneco URL: {eneco_url_polygon}, {payload}, {response_polygon.text}")
                 # assert response_polygon.status_code == 200
-                for eneco_eve in eneco_eves:
-                    if eneco_eve.get('id') in all_ids:
-                        continue
-                    all_ids[eneco_eve.get('id')] = eneco_eve
-                    evses = eneco_eve.get('evses',[])
-                    station_lat = eneco_eve['lat'] = eneco_eve.get('coordinates',{}).get('lat')
-                    station_lon = eneco_eve['lon'] = eneco_eve.get('coordinates',{}).get('lng')
+                for eneco_station in eneco_stations:
+                    station: EnecoChargingStation = EnecoChargingStation.model_validate(eneco_station)
+                    # if station.id in all_ids:
+                        # continue
+                    all_ids[station.id] = eneco_station
+                    evses = station.evses
+                    station_lat = station.coordinates.lat
+                    station_lon = station.coordinates.lng
 
                     distance = self.haversine_distance(float(str(station_lat).replace(',','.')), float(str(station_lon).replace(',','.')), locationInfoLat, locationInfoLon)
-                    eneco_eve["distance"] = distance
-                    eneco_eve["source"] = "Eneco"
+                    station.distance = distance
+                    station.source = "Eneco"
                     getPrices = False
                     if getPrices:
                         for evse in evses:
-                            evseId = evse.get('evseId')
+                            evseId = evse.evseId
                             if evseId in all_ids:
                                 continue
                             evse_price_url = "https://www.eneco-emobility.com/api/chargemap/evse-pricing"
@@ -215,10 +212,10 @@ class EVApi:
                             eneco_prices = await self.json_post_with_retry_client(evse_price_url, payload, header)
                             if eneco_prices:
                                 # _LOGGER.debug(f"Eneco prices: {eneco_prices}, distance: {distance}, {payload}")
-                                evse['prices'] = eneco_prices
-                                all_ids[evseId] = eneco_eve
-                    station = EnecoChargingStation.model_validate(eneco_eve)
-                all_stations.extend(station)
+                                evse.prices = eneco_prices
+                                all_ids[evseId] = eneco_station
+                    station = EnecoChargingStation.model_validate(eneco_station)
+                all_stations.append(station)
             radius = radius + 0.0045
         return all_stations
 

@@ -9,9 +9,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
 from .evrecharge import EVApi, ShellChargingStation, LocationEmptyError
+from .evrecharge.models import NearestChargingStations
 from .evrecharge.user import AssetsEmptyError, DetailedChargePointEmptyError, User
 from .evrecharge.usermodels import DetailedAssets
-from .location import LocationSession
+# from .location import LocationSession
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator, WRCError
 
 
@@ -181,7 +182,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         This is the place to pre-process the data to lookup tables
         so entities can quickly look up their data.
         """
-        data = None
+        data: NearestChargingStations = None
         
         resolved_origin = find_coordinates(self.hass, self._origin)
         origin_coordinates = await self._routeCalculatorClient._ensure_coords(resolved_origin)

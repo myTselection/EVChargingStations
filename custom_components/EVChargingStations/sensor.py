@@ -17,7 +17,7 @@ from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .evrecharge.models import ShellChargingStation, Status, ShellConnector
+from .evrecharge.models import ShellChargingStation, ShellStatus, ShellConnector, NearestChargingStations, EnecoStatus, EnecoConnector, EnecoChargingStation, EnecoEvse
 from .evrecharge.usermodels import ChargePointDetailedStatus, ChargeToken, DetailedAssets, DetailedChargePoint, DetailedEvse
 
 from . import (
@@ -25,7 +25,7 @@ from . import (
     EVRechargeUserDataUpdateCoordinator,
     StationsPublicDataUpdateCoordinator
 )
-from .const import DOMAIN, EvseId, EVRechargeEntityFeature
+from .const import DOMAIN, EvseId, EVRechargeEntityFeature, StationSensorType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,12 +53,22 @@ async def async_setup_entry(
 
     if coordinator.data:
         if isinstance(coordinator, StationsPublicDataUpdateCoordinator):
-            for evse in coordinator.data:
-                evse_id = evse.id
-                sensor: SensorEntity = EVShellRechargeSensor(
-                    evse_id=evse_id, coordinator=coordinator
-                )
-                entities.append(sensor)
+            nearestChargingStations: NearestChargingStations = coordinator.data
+
+            for field_name, station in nearestChargingStations.__dict__.items():
+                if station is not None:
+                    try:
+                        _LOGGER.info(f"field_name: {field_name}, station value: {station}")
+                        sensor_type = StationSensorType(field_name)
+                        for evse in station.evses:
+                            evse_id = evse.uid
+                            sensor: SensorEntity = NearestSensor(
+                                evse_id=evse_id, coordinator=coordinator, type=sensor_type
+                            )
+                            entities.append(sensor)
+                    except ValueError:
+                        continue  # field not represented in enum
+
         elif isinstance(coordinator, EVRechargePublicDataUpdateCoordinator):
             for evse in coordinator.data.evses:
                 evse_id = evse.uid
@@ -251,6 +261,141 @@ class EVCardText(
         raise HomeAssistantError("Charge card not found in coordinator cache")
 
 
+class NearestSensor(
+    CoordinatorEntity[StationsPublicDataUpdateCoordinator],
+    SensorEntity,
+):
+    """Main feature of this integration. This sensor represents an EVSE and shows its realtime availability status."""
+
+    def __init__(
+        self,
+        evse_id: EvseId,
+        coordinator: StationsPublicDataUpdateCoordinator,
+        type: StationSensorType,
+    ) -> None:
+        """Initialize the Sensor."""
+        super().__init__(coordinator)
+        self.evse_id = evse_id
+        self.coordinator = coordinator
+        self.type = type
+        self.nearestChargingStations: NearestChargingStations = self.coordinator.data
+        self.station: EnecoChargingStation = self.getStationForType(self.nearestChargingStations, type)
+        
+        self._attr_unique_id = f"{evse_id}-charger"
+        self._attr_attribution = "eneco-emobility.com"
+        self._attr_device_class = SensorDeviceClass.ENUM
+        self._attr_native_unit_of_measurement = None
+        self._attr_state_class = None
+        if hasattr(self.station, "ownerName") and self.station.ownerName:
+            operator = self.station.ownerName
+        else:
+            operator = self.station.ownerName
+        self._attr_has_entity_name = False
+        # self._attr_name = f"{operator} {self.station.address.streetAndNumber} {self.station.address.city}{' ' + self.station.address.country if hasattr(self.station.address, "country") else ''}"
+        self._attr_name = self.station.name
+        self._attr_device_info = DeviceInfo(
+            name=self._attr_name,
+            identifiers={(DOMAIN, self._attr_name)},
+            entry_type=None,
+            manufacturer=operator,
+        )
+        self._attr_options = list(typing.get_args(EnecoStatus))
+        self._read_coordinator_data()
+
+    def getStationForType(self, nearestChargingStations: NearestChargingStations, type: str) -> EnecoChargingStation | None:
+        station: EnecoChargingStation = None
+        if type == StationSensorType.NEAREST_STATION:
+            station = nearestChargingStations.nearest_station
+        elif type == StationSensorType.NEAREST_AVAILABLE_STATION:
+            station = nearestChargingStations.nearest_available_station
+        elif type == StationSensorType.NEAREST_HIGHSPEED_STATION:
+            station = nearestChargingStations.nearest_highspeed_station
+        elif type == StationSensorType.NEAREST_AVAILABLE_HIGHSPEED_STATION:
+            station = nearestChargingStations.nearest_available_highspeed_station
+        elif type == StationSensorType.NEAREST_SUPERHIGHSPEED_STATION:
+            station = nearestChargingStations.nearest_superhighspeed_station
+        elif type == StationSensorType.NEAREST_AVAILABLE_SUPERHIGHSPEED_STATION:
+            station = nearestChargingStations.nearest_available_superhighspeed_station
+        return station
+
+    def _get_evse(self) -> EnecoEvse | None:
+        # self.station = self.getStationForType(self.coordinator.data, type)
+        if self.station:
+            for evse in self.station.evses:
+                if evse.uid == self.evse_id:
+                    return evse
+        return None
+
+    def _choose_icon(self, connectors: list[EnecoConnector]) -> str:
+        iconmap: dict[str, str] = {
+            "Type1": "mdi:ev-plug-type1",
+            "Type2": "mdi:ev-plug-type2",
+            "IEC_62196_T2": "mdi:ev-plug-type2",
+            "Type3": "mdi:ev-plug-type2",
+            "Type1Combo": "mdi:ev-plug-ccs1",
+            "Type2Combo": "mdi:ev-plug-ccs2",
+            "IEC_62196_T2_COMBO": "mdi:ev-plug-ccs2",
+            "SAEJ1772": "mdi:ev-plug-chademo",
+            "TepcoCHAdeMO": "mdi:ev-plug-chademo",
+            "Tesla": "mdi:ev-plug-tesla",
+            "Domestic": "mdi:power-socket-eu",
+            "Unspecified": "mdi:ev-station",
+        }
+        if len(connectors) != 1:
+            return "mdi:ev-station"
+        return iconmap.get(connectors[0].standard, "mdi:ev-station")
+
+    def _read_coordinator_data(self) -> None:
+        """Read data from shell recharge ev."""
+        self.station = self.getStationForType(self.coordinator.data, type)
+        evse: EnecoEvse = self._get_evse()
+        _LOGGER.debug(evse)
+
+        try:
+            if evse:
+                self._attr_native_value = evse.status
+                self._attr_icon = self._choose_icon(evse.connectors)
+                connector: EnecoConnector = evse.connectors[0]
+                extra_data = {
+                    "address": self.station.address.streetAndNumber,
+                    "city": self.station.address.city,
+                    "postal_code": self.station.address.postalCode,
+                    "country": self.station.address.country,
+                    "latitude": self.station.coordinates.lat,
+                    "longitude": self.station.coordinates.lng,
+                    "operator_name": self.station.ownerName,
+                    "suboperator_name": self.station.owner.name,
+                    # "support_phonenumber": self.station.supportPhoneNumber,
+                    # "tariff_startfee": connector.tariff.startFee,
+                    # "tariff_per_kwh": connector.tariff.perKWh,
+                    # "tariff_per_minute": connector.tariff.perMinute,
+                    # "tariff_currency": connector.tariff.currency,
+                    # "tariff_updated": connector.tariff.updated,
+                    # "tariff_updated_by": connector.tariff.updatedBy,
+                    # "tariff_structure": connector.tariff.structure,
+                    # "connector_power_type": connector.electricalProperties.powerType,
+                    # "connector_voltage": connector.electricalProperties.voltage,
+                    # "connector_ampere": connector.electricalProperties.amperage,
+                    # "connector_max_power": connector.electricalProperties.maxElectricPower,
+                    # "connector_fixed_cable": connector.fixedCable,
+                    "accessibility": self.station.accessType,
+                    "allowed": self.station.isAllowed,
+                    "external_id": str(self.station.id),
+                    "evse_id": str(evse.evseId),
+                    "opentwentyfourseven": self.station.isTwentyFourSeven,
+                    # "opening_hours": location.openingHours,
+                    # "predicted_occupancies": location.predictedOccupancies,
+                }
+                self._attr_extra_state_attributes = extra_data
+        except AttributeError as err:
+            _LOGGER.error(err)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._read_coordinator_data()
+        self.async_write_ha_state()
+
 class EVShellRechargeSensor(
     CoordinatorEntity[EVRechargePublicDataUpdateCoordinator],
     SensorEntity,
@@ -284,7 +429,7 @@ class EVShellRechargeSensor(
             entry_type=None,
             manufacturer=operator,
         )
-        self._attr_options = list(typing.get_args(Status))
+        self._attr_options = list(typing.get_args(ShellStatus))
         self._read_coordinator_data()
 
     def _get_evse(self) -> Any:
