@@ -188,7 +188,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         origin_coordinates = await self._routeCalculatorClient._ensure_coords(resolved_origin)
         _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}")
         try:
-            data = await self.api.nearby_stations(origin_coordinates)
+            data = await self.api.nearby_stations(self._origin, origin_coordinates)
             # _LOGGER.debug(f"nearby_stations: {data}")
 
         except LocationEmptyError as exc:

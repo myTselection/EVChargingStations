@@ -232,3 +232,4 @@ class NearestChargingStations(BaseModel):
     nearest_available_highspeed_station: Optional[EnecoChargingStation] = None
     nearest_superhighspeed_station: Optional[EnecoChargingStation] = None
     nearest_available_superhighspeed_station: Optional[EnecoChargingStation] = None
+    origin: Optional[str] = None

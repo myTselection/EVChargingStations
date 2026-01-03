@@ -58,7 +58,7 @@ class EVApi:
 
 
     # async def nearby_stations(self, coordinates: Coords) -> list[ChargingStation] | None :
-    async def nearby_stations(self, coordinates: Coords, filter = "") -> NearestChargingStations | None :
+    async def nearby_stations(self, origin, coordinates: Coords, filter = "") -> NearestChargingStations | None :
         """
         Perform API request.
         Usually yields list of station object with one or multiple chargers.
@@ -77,6 +77,7 @@ class EVApi:
         # _LOGGER.debug(f"filtered_sorted: {filtered_sorted}")
         
         nearestChargingStations: NearestChargingStations = NearestChargingStations()
+        nearestChargingStations.origin = origin
 
         for station in filtered_sorted:
             # _LOGGER.debug(f"station: {station}")
