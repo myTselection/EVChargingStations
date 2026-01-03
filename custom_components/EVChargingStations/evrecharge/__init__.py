@@ -338,7 +338,7 @@ class EVApi:
         boundingbox = origin_coordinates.get('bounds')
         if boundingbox == None or len(boundingbox) == 0:
             # boundingbox = self.convertLatLonBoundingBox(origin_coordinates.get('lat'), origin_coordinates.get('lon'))
-            boundingbox = self.create_boundingbox_array(origin_coordinates.get('lat'), origin_coordinates.get('lon'), _RADIUS)
+            boundingbox = self.create_boundingbox_array(origin_coordinates.get('lat'), origin_coordinates.get('lon'), 5000)
             origin_coordinates['bounds'] = boundingbox
         _LOGGER.debug(f"boundingbox: {boundingbox}, coordinates: {origin_coordinates}")
         default_payload = self.defaultEnecoPayload(origin_coordinates)

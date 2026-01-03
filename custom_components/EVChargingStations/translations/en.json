@@ -5,7 +5,7 @@
     },
     "error": {
       "cannot_connect": "Failed to connect",
-      "empty_response": "Empty response from shellrecharge.com. Either invalid SERIAL-NUMBER or no data found for it.",
+      "empty_response": "No charging stations found. Please check form input and try again. Either invalid SERIAL-NUMBER or no data found for it.",
       "login_failed": "Login failed, please verify email and password are correct.",
       "missing_data": "Please provide either a serial number or email and password.",
       "unknown": "Unexpected error"
@@ -28,7 +28,7 @@
           },
           "public": {
             "data": {
-              "origin": "Origin eg: 51.330436, 3.802043 or person.fred"
+              "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country"
             },
             "name": "Public nearest charge points"
           }
