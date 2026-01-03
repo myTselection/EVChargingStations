@@ -203,7 +203,7 @@ class EVApi:
             try:
                 totalEves = await self.countChargingStationsPayload(deault_payload)
             except Exception as e:
-                _LOGGER.warning(f"ERROR: Eneco URL: {eneco_url_polygon}, {payload}, {e}")
+                _LOGGER.warning(f"ERROR: Eneco countChargingStationsPayload, currRadius {currRadius}, exception: {e}")
                 continue
             _LOGGER.info(f"Total Eneco EVs: {totalEves}")
             if totalEves == 0:
