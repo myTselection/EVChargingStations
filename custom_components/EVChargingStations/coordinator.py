@@ -193,20 +193,20 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
 
         except LocationEmptyError as exc:
             _LOGGER.error(
-                "Error occurred while fetching data for charger(s) %s, not found, or coordinates are invalid",
-                resolved_origin,
+                "Error occurred while fetching data for charger(s) %s, not found, or coordinates are invalid, %s",
+                resolved_origin, exc
             )
             raise UpdateFailed() from exc
         except CancelledError as exc:
             _LOGGER.error(
-                "CancelledError occurred while fetching data for charger(s) %s",
-                resolved_origin,
+                "CancelledError occurred while fetching data for charger(s) %s, %s",
+                resolved_origin, exc
             )
             raise UpdateFailed() from exc
         except TimeoutError as exc:
             _LOGGER.error(
-                "TimeoutError occurred while fetching data for charger(s) %s",
-                resolved_origin,
+                "TimeoutError occurred while fetching data for charger(s) %s, %s",
+                resolved_origin, exc
             )
             raise UpdateFailed() from exc
         except ClientError as exc:

@@ -415,8 +415,8 @@ class NearestSensor(
                     "facilities": ", ".join(self.station.facilities),
                     "available_connectors": self.station.evseSummary.available,
                     "number_of_connectors": self.station.evseSummary.total,
-                    "max_speed kWh": self.station.evseSummary.maxSpeed/1000 if self.station.evseSummary.maxSpeed else None,
-                    "min_speed kWh": self.station.evseSummary.minSpeed/1000 if self.station.evseSummary.minSpeed else None,
+                    "max_speed_kWh": self.station.evseSummary.maxSpeed/1000 if self.station.evseSummary.maxSpeed else None,
+                    "min_speed_kWh": self.station.evseSummary.minSpeed/1000 if self.station.evseSummary.minSpeed else None,
                     "is_unlimited": self.station.evseSummary.isUnlimited,
                     "is_limited": self.station.evseSummary.isLimited,
                     "is_unkown": self.station.evseSummary.isUnknown,
@@ -434,8 +434,8 @@ class NearestSensor(
                     "charging_costs": evse.prices.chargingCosts if evse.prices else None,
                     "charging_time_costs": evse.prices.chargingTimeCosts if evse.prices else None,
                     "start_tariff": evse.prices.startTariff if evse.prices else None,
-                    "parking_Time_costs": evse.prices.parkingTimeCosts if evse.prices else None,
-                    "price description": evse.prices.description if evse.prices else None,
+                    "parking_time_costs": evse.prices.parkingTimeCosts if evse.prices else None,
+                    "price_description": evse.prices.description if evse.prices else None,
                 }
                 self._attr_extra_state_attributes = extra_data
         except AttributeError as err:

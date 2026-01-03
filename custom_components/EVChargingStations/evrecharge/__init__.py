@@ -200,7 +200,11 @@ class EVApi:
             # min_lat={boundingbox[0]}&max_lat={boundingbox[2]}&min_long={boundingbox[1]}&max_long={boundingbox[3]}
             # payload = {"bounds":{"northWest":[boundingbox[2],boundingbox[1]],"northEast":[boundingbox[2],boundingbox[3]],"southEast":[boundingbox[0],boundingbox[3]],"southWest":[boundingbox[0],boundingbox[1]]},"filters":{"fastCharging":"false","ultraFastCharging":"false"},"zoomLevel":7}
             deault_payload = self.defaultEnecoPayload(origin_coordinates)
-            totalEves = await self.countChargingStationsPayload(deault_payload)
+            try:
+                totalEves = await self.countChargingStationsPayload(deault_payload)
+            except Exception as e:
+                _LOGGER.warning(f"ERROR: Eneco URL: {eneco_url_polygon}, {payload}, {e}")
+                continue
             _LOGGER.info(f"Total Eneco EVs: {totalEves}")
             if totalEves == 0:
                 continue
@@ -358,6 +362,7 @@ class EVApi:
         json_response = None
         try:
             async with self.retry_client.get(url, headers=header) as response:
+                _LOGGER.info(f"response url {url}, status: {response.status}")
                 if response.status == 200:
                     result = await response.json()
                     if result:
@@ -388,6 +393,7 @@ class EVApi:
         json_response = None
         try:
             async with self.retry_client.post(url, headers=header, json=payload) as response:
+                _LOGGER.info(f"response url {url}, status: {response.status}, payload: {payload}")
                 if response.status == 200:
                     result = await response.json()
                     if result:
