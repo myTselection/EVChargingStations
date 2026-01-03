@@ -43,8 +43,6 @@ Optional also:
 
 
 
-# TODO, UNDER CONSTRUCTION
-
 ## Installation
 - [HACS](https://hacs.xyz/): search for Carbu in the default HACS repo list or use below button to navigate directly to it on your local system and install via HACS. 
    -    [![Open your Home Assistant instance and open the repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg?style=flat-square)](https://my.home-assistant.io/redirect/hacs_repository/?owner=myTselection&repository=EVChargingStations&category=integration)
@@ -120,6 +118,82 @@ Optional also:
     </details>
     
 
+## Show map
+
+### Nearest map
+
+To show a map in Home Assistant with all nearest charging stations you can use a setup such as shown below. It will show the max kWh charging power on map.
+
+   ```
+   type: map
+   entities:
+     - entity: sensor.nearest_station_device_tracker_car_position
+       label_mode: attribute
+       attribute: connector_max_power
+       focus: false
+     - entity: >-
+         sensor.nearest_available_station_device_tracker_car_position
+       label_mode: attribute
+       attribute: connector_max_power
+       focus: true
+     - entity: >-
+         sensor.nearest_highspeed_station_device_tracker_car_position
+       label_mode: attribute
+       attribute: connector_max_power
+       focus: false
+     - entity: >-
+         sensor.nearest_available_highspeed_station_device_tracker_car_position
+       label_mode: attribute
+       attribute: connector_max_power
+       focus: true
+     - entity: >-
+         sensor.nearest_superhighspeed_station_device_tracker_car_position
+       label_mode: attribute
+       attribute: connector_max_power
+       focus: false
+     - entity: >-
+         sensor.nearest_available_superhighspeed_station_device_tracker_car_position
+       label_mode: attribute
+       attribute: connector_max_power
+       focus: true
+     - entity: device_tracker.car_position
+   theme_mode: auto
+
+   ```
+
+### Eneco map
+
+To show the [Eneco charging map](https://www.eneco-emobility.com/be-nl/chargemap) for a specific location linked to some sensor in Home Assistant IFrame you can:
+- install [Config Template Card HACS](https://github.com/iantrich/config-template-card)
+- define a template sensor to dynamically build the website url based on sensor coordinates
+   - in `configuration.yaml`
+   ```
+   template:
+     - sensor:
+      - name: "Car Eneco Charging Station URL"
+        state: >
+          https://www.eneco-emobility.com/be-nl/chargemap#loc={{ state_attr('device_tracker.car_position', 'latitude') }}%2C{{ state_attr('device_tracker.car_position', 'longitude') }}%2C16
+
+   ```
+   
+- create a new card in frontend with config such as shown below:
+     
+   ```
+   type: custom:config-template-card
+   entities:
+     - sensor.car_eneco_charging_station_url
+   variables:
+     - states
+   card:
+     type: iframe
+     aspect_ratio: 50%
+     url: ${states['sensor.car_eneco_charging_station_url'].state}
+
+   ```
+
+
+
+# TODO, UNDER CONSTRUCTION
 ### Services / Actions
 A **service `EVChargingStations.get_lowest_fuel_price`** to get the lowest fuel price in the area of a postalcode is available. For a given fuel type and a distance in km, the lowest fuel price will be fetched and an event will be triggered with all the details found. Similar, the service **`EVChargingStations.get_lowest_fuel_price_coor`** can be called providing latitude and longitude coordinates instead of country, postalcode and town.
 
