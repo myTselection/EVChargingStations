@@ -70,29 +70,52 @@ Optional also:
 ## Integration
 TODO
 ### Sensors
-- <details><summary>Sensor with lowest diesel and super <code>sensor.EVChargingStations_[fueltype]_[postalcode]_price</code> and lowest fuel oil <code>sensor.EVChargingStations_[fueltype]_[postalcode]_[quantity]l_price</code> Fuel oil only supported for BE/FR/LU</summary>
+- <code>sensor.nearest_station_[origin]</code>: sensor with info of nearest charging station
+- <code>sensor.nearest_available_station_[origin]</code>: sensor with info of nearest available charging station
+- <code>sensor.nearest_highspeed_station_[origin]</code>: sensor with info of nearest highspeed charging station (+50kWh)
+- <code>sensor.nearest_available_highspeed_station_[origin]</code>: sensor with info of nearest available highspeed charging station (+50kWh)
+- <code>sensor.nearest_available_superhighspeed_station_[origin]</code>: sensor with info of nearest superhighspeed charging station (+100kWh)
+- <code>sensor.nearest_available_superhighspeed_station_[origin]</code>: sensor with info of nearest available superhighspeed charging station (+100kWh)
+- <details><summary>Sensor attributes</summary>
 
     | Attribute | Description |
     | --------- | ----------- |
-    | State     | **Price** |
-    | `last update `   | Timestamp info last retrieved from the carbu.com website. (There is a throttling of 1h active to limit requests. Restart HA to force update) |
-    | `fueltype`   | Fuel type |
-    | `fuelname` | Full name of the fuel type |
-    | `postalcode`  | Postalcode at which the price was retrieved |
-    | **`supplier`**  | **Name of the supplier of the fuel** |
-    | `supplier_brand`  | Brand name of the supplier (eg Shell, Texaco, ...) Not supported for DE |
-    | `url`  | Url with details of the supplier |
-    | `entity_picture`  | Url with the logo of the supplier |
-    | `address`  | Address of the supplier |
-    | `city`  | City of the supplier |
-    | `latitude`  | Latitude of the supplier |
-    | `longitude`  | Longitude of the supplier |
-    | **`distance`**  | **Distance to the supplier vs postal code** ( Not supported for IT ) |
-    | `date`  | Date for the validity of the price |
-    | `quantity`  | Quantity of fuel (only for fuel oil) |
-    | `score`  | Score of the supplier |
-    | `id`  | Unique id of the supplier |
-    | ~~`suppliers`~~  | ~~Full json list of all suppliers with prices and detials found in neighbourhood around the postal code~~ |
+    | State     | **Status** |
+    | `name`    | Name of the charging station, ofter referring to the location |
+    | `type`    | Type of the charging station, eg nearest_available_superhighspeed_station |
+    | `address`  | Address of the charging station |
+    | `postal_code`  | Postal code of the charging station |
+    | `city`  | City of the charging station |
+    | `country`  | Country of the charging station |
+    | `latitude`  | Latitude of the charging station |
+    | `longitude`  | Longitude of the charging station |
+    | `distance`  | Approximate distance between charging station and set `origin` |
+    | `operator_name`  | Name of the operator of the charging station |
+    | `url`  | Direct URL to the Eneco chargemap with details of the charging station |
+    | `facilities`  | Facilities available close to the charging station |
+    | `avaialbe_connectors`  | Total number of connectors available at the charging station |
+    | `number_of_connectors`  | Total number of connectors at the charging station |
+    | `max_speed_kWh`  | Max speed connector at the charging station |
+    | `min_speed_kWh`  | Min speed connector at the charging station |
+    | `is_unlimited`  | Indication if any limitation applies at the charging station |
+    | `is_limited`  | Indication if any limitation applies at the charging station |
+    | `is_unkown`  | Indication if the charging station is unknown |
+    | `allowed`  | Indication if the charging station is allowed for Eneco charging card holders |
+    | `external_id`  | External unique technical id of the charging station |
+    | `evse_id`  | Functional id of the charging station |
+    | `status`  | Status indication of the charging station, any of "AVAILABLE", "CHARGING", "OUTOFORDER", "UNAVAILABLE", "UNKNOWN", "BLOCKED" |
+    | `last update `   | Timestamp of latest status info of charging station |
+    | `physical_reference`  | Physical reference id of the charging station |
+    | `connector_standard`  | Connector standard info of the charging station, eg IEC_62196_T2 |
+    | `connector_type`  | Connector power type info of the charging station, eg AC_3_PHASE |
+    | `connector_format`  | Connector info of the charging station |
+    | `connector_max_power`  | Connector info max power in kWh of the charging station, eg 17kWh|
+    | `opentwentyfourseven`  | Indication if the charging station is open 24/7, true or false|
+    | `charging_costs`  | Price charging cost info of the charging station per Watt of charging or false |
+    | `charging_time_costs`  | Price charging cost info of the charging station per minute of charging or false |
+    | `start_tariff`  | Price charging cost info of the charging station to start charging session or false |
+    | `parking_time_costs`  | Price charging cost info of the charging station for parking during charging or false |
+    | `price_description`  | Price charging cost info of the charging station |
     
     </details>
     
