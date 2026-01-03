@@ -61,8 +61,7 @@ Optional also:
 
 ### Setup screenshot
 
-TODO:
-![Carbu com setup config](https://github.com/user-attachments/assets/103221e3-3a0a-48ef-a3ae-00b59ee5e2cb) 
+![Carbu com setup config](https://github.com/myTselection/EVChargingStations/blob/ac496efdba41d4efd64aac7c46395df0f7722121/setup.png) 
 
 
 
