@@ -9,9 +9,10 @@
 # Public EV Charging Stations Home Assistant integration
 Home Assistant custom component to create sensors with information on the available EV Charging Station in a chosen area. This custom component has been built from the ground up to bring public site data to compare and save on your EV prices and integrate this information into Home Assistant. This integration is built against the public websites provided by Eneco.com and other similar sites. Sensors will be created for nearest stations of different speeds and availability. 
 
-**Currently supporting charging stations in Belgium, France, Luxembourg, Spain, Netherlands, Germany, Italy and on routes.**
+**Currently supporting charging stations in from [Eneco](https://www.eneco-emobility.com/be-nl/chargemap) and [Shell](https://ui-map.shellrecharge.com/).**
 
 This integration is in no way affiliated with Eneco.com. This integration is based on my other [Carbu.com](https://github.com/myTselection/Carbu_com) custom integration, which brings similar functionality for fuel/gas stations.
+Large parts of the code base has been based on the [Shell Recharge](https://github.com/cyberjunky/home-assistant-shell_recharge) custom integration. The same functionality is available, but has been extended to support Eneco charging stations and to automatically find the stations that matches criteria.
 
 | :warning: Please don't report issues with this integration to other platforms, they will not be able to support you. |
 | ---------------------------------------------------------------------------------------------------------------------|
@@ -25,10 +26,10 @@ For electricity price expectations [this Entso-E HACS integration](https://githu
 With this integration it will be possible to:
 - subscribe to specific charging point, to make it possible to get notified once available
 - get sensors (can be shown on map) with:
-   - charging stations **nearest** to location
-   - **available** charging stations **nearest** to location
+   - charging station **nearest** to location
+   - **available** charging station **nearest** to location
    - **high** speed charging station **nearest** to location
-   - **high** speed **available** charging stations **nearest** to location
+   - **high** speed **available** charging station **nearest** to location
    - **super high** speed charging station **nearest** to location
    - **super high** speed **available** charging station **nearest** to
 
@@ -49,46 +50,26 @@ Optional also:
    -    [![Open your Home Assistant instance and open the repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg?style=flat-square)](https://my.home-assistant.io/redirect/hacs_repository/?owner=myTselection&repository=EVChargingStations&category=integration)
 - Restart Home Assistant
 - Add 'EV Charging Stations' integration via HA Settings > 'Devices and Services' > 'Integrations'
-- Provide country, postal code and select the desired sensors
-   - The name of the town can be selected from the dropdown in the next step of the setup config flow. See [carbu.com](https://carbu.com) website for known towns and postal codes. (Only for BE/FR/LU)
-   - An extra checkbox can be set to select a specific individual gas station. If set, a station can be selected in a dropdown with known gas stations (for which a price is available) close to the provided postalcode and town. No sensor for 5km and 10km will be created, only the price sensor for the individual selected station. The name of the sensor will contain the name of the supplier.
-   - For Italy, Netherlands, Spain and US the town will be requested in the second step of the config flow
-- Get an API key at [Geoapify.com](https://myprojects.geoapify.com/register), which has a free tier for 3K geocoding requests per day. If the API key is not set, countries IT, NL, ES and US will not function and services to find fuel price on route or at coordinate will not function. The API key can also be set/updated on existing sensors using the 'Configure' entity option.
-- A filter on supplier brand name can be set (optional). If the filter match, the fuel station will be considered, else next will be searched. A python regex filter value can be set
-- An option is avaible to show a logo (entity picture) with price or the original logo provided by the source. This is mainly visible when mapping the sensor on a map.
-- After setting up the integration, the configuration can be updated using the 'Configure' button of the integration. The usage of a station filter can be enabled and set, the usage of a template to set the 'friendly name' of each sensor type can be enabled and set and the usage of icons with price indication can be enabled or disabled.
+- Choose the type of charging station to setup: nearest public station, specific station or Shell station with credentials.
+- For 'Public nearest station':
+   - Provid any 'origin': this can be a coordinate eg: "51.330436, 3.802043" or "street, city, country" or any sensor name which has latitude and longitutde coordinate attributes eg "person.fred" or "device_tracker.car_position"
+- TODO: After setting up the integration, the configuration can be updated using the 'Configure' button of the integration. The usage of a station filter can be enabled and set, the usage of a template to set the 'friendly name' of each sensor type can be enabled and set and the usage of icons with price indication can be enabled or disabled.
   - The checkboxes are required since else clearing the text of the configuration was not recorded (HA bug?) and filter or templates could no longer be removed once set.
   - When setting a sensor 'friendly name' template, any sensor attribute can be used as a placeholder which will be replaced with the actual value. Eg: `Price {fueltype} {fuelname} {supplier}` could be used as a template for the Price sensor. All available attributes can be fetched using the 'Developer Tools' > 'States' > 'Attributes' view in HA or using the tables listed below.
 
 
 
 ### Setup screenshot
+
+TODO:
 ![Carbu com setup config](https://github.com/user-attachments/assets/103221e3-3a0a-48ef-a3ae-00b59ee5e2cb) 
 
-For BE/FR/LU, sensors for mazout/fuel oil can be added too.
-
-![Carbu com BE-FR-LU fuel mazout prices](https://github.com/user-attachments/assets/1b9d0f16-3e88-4797-9e53-c69624a1f35d)
-
-
-If desired (selection box default off), the fuel price of a specific individual station can be shown. If no individual station is enabled, the cheapest station in the area will be retrieved and price and address details will be shown in the sensor attributes.
-
-![Carbu com optional specific gas station](https://github.com/user-attachments/assets/81cbb120-5b1c-4d25-bdc9-9f6b7c09f209)
 
 
 
 
 ## Integration
-### Mapping
-
-| Fuel type | BE/FR/LU (carbu) | DE (clever-tanken.de) | IT (prezzibenzina.it) | NL (brandstof-zoeker.nl) | ES (sedeaplicaciones.minetur.gob.es) | US (gas-buddy.com) |
-| --------- | ---------------- | --------------------- | --------------------- | ------------------------ | ------------------------------------ | ------------------ |
-| SUPER95 (E10)  | E10         | Super E10             | benzina               | euro95                   | Gasolina 95 E10                      | regular_gas        |
-| SUPER95 (E5)   | / (E10)     | Super E5              | / (benzina)           | specbenzine              | Gasolina 95 E5 Premium               | / (regular_gas)    |
-| SUPER98 (E5)   | SP98        | SuperPlus             | benzinasp             | superplus                | Gasolina 98 E5                       | premium_gas        |
-| DIESEL (B7)    | GO          | Diesel                | diesel                | diesel                   | Gasóleo A                            | diesel             |
-| LPG            | GPL         | LPG                   | gpl                   | lpg                      | Gases licuados del petróleo          | /                  |
-
-
+TODO
 ### Sensors
 - <details><summary>Sensor with lowest diesel and super <code>sensor.EVChargingStations_[fueltype]_[postalcode]_price</code> and lowest fuel oil <code>sensor.EVChargingStations_[fueltype]_[postalcode]_[quantity]l_price</code> Fuel oil only supported for BE/FR/LU</summary>
 
