@@ -12,6 +12,7 @@ Home Assistant custom component to create sensors with information on the availa
 **Currently supporting charging stations in from [Eneco](https://www.eneco-emobility.com/be-nl/chargemap) and [Shell](https://ui-map.shellrecharge.com/).**
 
 This integration is in no way affiliated with Eneco.com. This integration is based on my other [Carbu.com](https://github.com/myTselection/Carbu_com) custom integration, which brings similar functionality for fuel/gas stations.
+
 Large parts of the code base has been based on the [Shell Recharge](https://github.com/cyberjunky/home-assistant-shell_recharge) custom integration. The same functionality is available, but has been extended to support Eneco charging stations and to automatically find the stations that matches criteria.
 
 | :warning: Please don't report issues with this integration to other platforms, they will not be able to support you. |
