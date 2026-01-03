@@ -289,9 +289,9 @@ class NearestSensor(
         
         # self._attr_name = f"{operator} {self.station.address.streetAndNumber} {self.station.address.city}{' ' + self.station.address.country if hasattr(self.station.address, "country") else ''}"
         # self._attr_name = self.station.name
-        self._attr_name = f"{snake_to_title(self.type.value)} {self.station.name}"
+        self._attr_name = snake_to_title(self.type.value)
         self._attr_has_entity_name = False
-        self._attr_unique_id = self.type.value
+        self._attr_unique_id = snake_to_title(self.type.value)
         self._attr_attribution = "eneco-emobility.com"
         self._attr_device_class = SensorDeviceClass.ENUM
         self._attr_native_unit_of_measurement = None
@@ -299,7 +299,7 @@ class NearestSensor(
         if hasattr(self.station, "ownerName") and self.station.ownerName:
             operator = self.station.ownerName
         else:
-            operator = self.station.ownerName
+            operator = self.station.owner.name
         self._attr_device_info = DeviceInfo(
             name=self._attr_name,
             identifiers={(DOMAIN, self._attr_unique_id)},
@@ -383,6 +383,7 @@ class NearestSensor(
 
         try:
             if evse:
+                self._attr_name = f"{snake_to_title(self.type.value)} {self.station.name}"
                 self._attr_native_value = evse.status
                 self._attr_icon = self._choose_icon(evse.connectors)
                 connector: EnecoConnector = evse.connectors[0]
