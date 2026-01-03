@@ -11,6 +11,7 @@ import voluptuous as vol
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.components.text import TextEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_platform
@@ -58,7 +59,7 @@ async def async_setup_entry(
             for field_name, station in nearestChargingStations.__dict__.items():
                 if station is not None:
                     try:
-                        _LOGGER.debug(f"field_name: {field_name}, station value: {station}")
+                        # _LOGGER.debug(f"field_name: {field_name}, station value: {station}")
                         sensor_type = StationSensorType(field_name)
                         sensor: SensorEntity = NearestSensor(coordinator=coordinator, type=sensor_type)
                         entities.append(sensor)
@@ -92,6 +93,14 @@ async def async_setup_entry(
                 entities.append(text)
 
         async_add_entities(entities, True)
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry):
+    _LOGGER.info("sensor async_remove_entry " + entry.entry_id)
+    try:
+        await hass.config_entries.async_forward_entry_unload(entry, Platform.SENSOR)
+        _LOGGER.info("Successfully removed sensor from the integration")
+    except ValueError:
+        pass
 
 
 class EVRechargePrivateSensor(
@@ -296,10 +305,11 @@ class NearestSensor(
         self._attr_device_class = SensorDeviceClass.ENUM
         self._attr_native_unit_of_measurement = None
         self._attr_state_class = None
-        if hasattr(self.station, "ownerName") and self.station.ownerName:
-            operator = self.station.ownerName
-        else:
-            operator = self.station.owner.name
+        # if hasattr(self.station, "ownerName") and self.station.ownerName:
+        #     operator = self.station.ownerName
+        # else:
+        #     operator = self.station.owner.name
+        operator = self.station.name
         self._attr_device_info = DeviceInfo(
             name=self._attr_name,
             identifiers={(DOMAIN, self._attr_unique_id)},
@@ -379,15 +389,17 @@ class NearestSensor(
         """Read data from ev station."""
         self.station = self.getStationForType(self.coordinator.data, self.type)
         evse: EnecoEvse = self._get_evse()
-        _LOGGER.debug(f"_read_coordinator_data: evse: {evse}, station: {self.station}")
+        _LOGGER.info(f"_read_coordinator_data: evse: {evse}, station: {self.station}")
 
         try:
             if evse:
-                self._attr_name = f"{snake_to_title(self.type.value)} {self.station.name}"
+                # self._attr_name = f"{snake_to_title(self.type.value)} {self.station.name}"
                 self._attr_native_value = evse.status
                 self._attr_icon = self._choose_icon(evse.connectors)
                 connector: EnecoConnector = evse.connectors[0]
                 extra_data = {
+                    "name": self.station.name,
+                    "type": self.type.value,
                     "address": self.station.address.streetAndHouseNumber,
                     "city": self.station.address.city,
                     "postal_code": self.station.address.postcode,
@@ -406,20 +418,6 @@ class NearestSensor(
                     "is_unlimited": self.station.evseSummary.isUnlimited,
                     "is_limited": self.station.evseSummary.isLimited,
                     "is_unkown": self.station.evseSummary.isUnknown,
-                    # "support_phonenumber": self.station.supportPhoneNumber,
-                    # "tariff_startfee": connector.tariff.startFee,
-                    # "tariff_per_kwh": connector.tariff.perKWh,
-                    # "tariff_per_minute": connector.tariff.perMinute,
-                    # "tariff_currency": connector.tariff.currency,
-                    # "tariff_updated": connector.tariff.updated,
-                    # "tariff_updated_by": connector.tariff.updatedBy,
-                    # "tariff_structure": connector.tariff.structure,
-                    # "connector_power_type": connector.electricalProperties.powerType,
-                    # "connector_voltage": connector.electricalProperties.voltage,
-                    # "connector_ampere": connector.electricalProperties.amperage,
-                    # "connector_max_power": connector.electricalProperties.maxElectricPower,
-                    # "connector_fixed_cable": connector.fixedCable,
-                    "accessibility": self.station.accessType,
                     "allowed": self.station.isAllowed,
                     "external_id": str(self.station.id),
                     "evse_id": str(evse.evseId),
@@ -436,8 +434,6 @@ class NearestSensor(
                     "start_tariff": evse.prices.startTariff if evse.prices else None,
                     "parking_Time_costs": evse.prices.parkingTimeCosts if evse.prices else None,
                     "price description": evse.prices.description if evse.prices else None,
-                    # "opening_hours": location.openingHours,
-                    # "predicted_occupancies": location.predictedOccupancies,
                 }
                 self._attr_extra_state_attributes = extra_data
         except AttributeError as err:
@@ -447,7 +443,13 @@ class NearestSensor(
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._read_coordinator_data()
+        self._attr_name = f"{self.station.name}"
         self.async_write_ha_state()
+
+    
+    async def async_will_remove_from_hass(self):
+        """Clean up after entity before removal."""
+        _LOGGER.info("async_will_remove_from_hass " + self.entity_id)
 
 class EVShellRechargeSensor(
     CoordinatorEntity[EVRechargePublicDataUpdateCoordinator],

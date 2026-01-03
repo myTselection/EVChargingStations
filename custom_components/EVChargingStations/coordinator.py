@@ -186,7 +186,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         
         resolved_origin = find_coordinates(self.hass, self._origin)
         origin_coordinates = await self._routeCalculatorClient._ensure_coords(resolved_origin)
-        _LOGGER.debug(f"coordinator origin_coordinates: {origin_coordinates}")
+        _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}")
         try:
             data = await self.api.nearby_stations(origin_coordinates)
             # _LOGGER.debug(f"nearby_stations: {data}")

@@ -79,12 +79,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry):
+    try:
+        for platform in PLATFORMS:
+            await hass.config_entries.async_forward_entry_unload(entry, platform)
+            _LOGGER.info("Successfully removed sensor from the integration")
+    except ValueError:
+        pass
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
+    # Flag that a reload is in progress
+    _LOGGER.info("async_remove_entry " + entry.entry_id)
+    hass.data[DOMAIN]["reloading"] = True
 
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
+    hass.data[DOMAIN].pop("reloading", None)
 
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        _LOGGER.info("async_unload_entry still set: " + entry.entry_id)
+    for entry in hass.data[DOMAIN].keys():
+        _LOGGER.info("async_unload_entry still set: " + entry)
     return unload_ok

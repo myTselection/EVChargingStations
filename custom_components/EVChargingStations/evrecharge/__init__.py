@@ -248,8 +248,9 @@ class EVApi:
                         if station.evseSummary.available > 0:
                             superHighSpeedAvailableFound = True               
                 all_stations.append(station)
-            if highspeedFound and standardSpeedFound and superHighSpeedFound and highspeedAvailableFound and standardAvailableSpeedFound and superHighSpeedAvailableFound:
-                someTypesMissing = False
+                if highspeedFound and standardSpeedFound and superHighSpeedFound and highspeedAvailableFound and standardAvailableSpeedFound and superHighSpeedAvailableFound:
+                    someTypesMissing = False
+                    break
         return all_stations
 
     async def addEnecoPrices(self, station: EnecoChargingStation)-> EnecoChargingStation | None:
