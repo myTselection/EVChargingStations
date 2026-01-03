@@ -51,7 +51,11 @@ Optional also:
 - Add 'EV Charging Stations' integration via HA Settings > 'Devices and Services' > 'Integrations'
 - Choose the type of charging station to setup: nearest public station, specific station or Shell station with credentials.
 - For 'Public nearest station':
-   - Provid any 'origin': this can be a coordinate eg: "51.330436, 3.802043" or "street, city, country" or any sensor name which has latitude and longitutde coordinate attributes eg "person.fred" or "device_tracker.car_position"
+   - Provide any 'origin': this can be a coordinate eg: "51.330436, 3.802043" or "street, city, country" or any sensor name which has latitude and longitutde coordinate attributes eg "person.fred" or "device_tracker.car_position"
+- For 'Public single Shell charge station':
+   - Provide the unique serial number of the charging station: the serial number can be found in the details of a charging station on [https://ui-map.shellrecharge.com](https://ui-map.shellrecharge.com)
+- For 'Private Shell charge station':
+   - Provide Shell credentials username and password
 - TODO: After setting up the integration, the configuration can be updated using the 'Configure' button of the integration. The usage of a station filter can be enabled and set, the usage of a template to set the 'friendly name' of each sensor type can be enabled and set and the usage of icons with price indication can be enabled or disabled.
   - The checkboxes are required since else clearing the text of the configuration was not recorded (HA bug?) and filter or templates could no longer be removed once set.
   - When setting a sensor 'friendly name' template, any sensor attribute can be used as a placeholder which will be replaced with the actual value. Eg: `Price {fueltype} {fuelname} {supplier}` could be used as a template for the Price sensor. All available attributes can be fetched using the 'Developer Tools' > 'States' > 'Attributes' view in HA or using the tables listed below.
