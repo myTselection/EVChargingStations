@@ -12,28 +12,32 @@
     },
     "step": {
       "user": {
+        "data": {
+          "source": "Source"
+        },
         "sections": {
           "shell": {
             "data": {
               "email": "Shell Recharge account e-mail address",
               "password": "Shell Recharge account password"
             },
-            "name": "Private Shell charge point"
+            "name": "Private Shell charge station"
           },
           "single": {
             "data": {
-              "serial_number": "SERIAL-NUMBER (e.g. 0F80EA26-5F5D-4728-B5E5-268BE55B9191)"
+              "serial_number": "Shell SERIAL-NUMBER (e.g. 0F80EA26-5F5D-4728-B5E5-268BE55B9191) found on https://ui-map.shellrecharge.com/"
             },
-            "name": "Public single charge point"
+            "name": "Public single Shell charge station"
           },
           "public": {
             "data": {
-              "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country"
+              "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country",
+              "only_eneco": "Only show Eneco stations"
             },
-            "name": "Public nearest charge points"
+            "name": "Public nearest charge startions"
           }
         },
-        "title": "Configure a public or Shell charge point"
+        "title": "Setup charge stations"
       }
     }
   },

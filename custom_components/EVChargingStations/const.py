@@ -10,6 +10,10 @@ Origin = str
 EvseId = str
 UPDATE_INTERVAL = timedelta(minutes=5)
 CONF_ORIGIN = "origin"
+CONF_ONLY_ENECO = "only_eneco"
+CONF_SOURCE = "source"
+CONF_SOURCE_ENCECO = "Eneco"
+CONF_SOURCE_SHELL = "Shell"
 CONF_PUBLIC = "public"
 CONF_SINGLE = "single"
 CONF_SHELL = "shell"

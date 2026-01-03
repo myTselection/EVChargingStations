@@ -9,14 +9,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
 from .evrecharge import EVApi, ShellChargingStation, LocationEmptyError
-from .evrecharge.models import NearestChargingStations
+from .evrecharge.models import NearestChargingStations, Coords
 from .evrecharge.user import AssetsEmptyError, DetailedChargePointEmptyError, User
 from .evrecharge.usermodels import DetailedAssets
 # from .location import LocationSession
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator, WRCError
 
 
-from .const import DOMAIN, UPDATE_INTERVAL, SerialNumber,CONF_ORIGIN, CONF_API_KEY, CONF_PASSWORD, CONF_EMAIL, CONF_SERIAL_NUMBER, CONF_SINGLE, CONF_PUBLIC
+from .const import DOMAIN, UPDATE_INTERVAL, SerialNumber,CONF_ORIGIN, CONF_API_KEY, CONF_PASSWORD, CONF_EMAIL, CONF_SERIAL_NUMBER, CONF_SINGLE, CONF_PUBLIC, CONF_ONLY_ENECO
 
 _LOGGER = logging.getLogger(__name__)
 _GEO_API_KEY = ""
@@ -174,6 +174,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self.api = api
         self._origin = config_entry.data[CONF_PUBLIC].get(CONF_ORIGIN)
+        self._onlyEnecoStations = config_entry.data[CONF_PUBLIC].get(CONF_ONLY_ENECO)
         self._routeCalculatorClient = routeCalculatorClient
 
     async def _async_update_data(self):
@@ -188,7 +189,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         origin_coordinates = await self._routeCalculatorClient._ensure_coords(resolved_origin)
         _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}")
         try:
-            data = await self.api.nearby_stations(self._origin, origin_coordinates)
+            data = await self.api.nearby_stations(self._origin, origin_coordinates, self._onlyEnecoStations)
             # _LOGGER.debug(f"nearby_stations: {data}")
 
         except LocationEmptyError as exc:

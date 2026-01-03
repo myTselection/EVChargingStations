@@ -25,22 +25,44 @@ _RADIUS = 500
 class EVApi:
     """Class to make API requests."""
 
-    def __init__(self, websession: ClientSession):
+    def __init__(self, websession: ClientSession, source: str = "eneco"):
         """Initialize the session."""
         self.websession = websession
         self.logger = logging.getLogger("evrecharge")
         self.retry_client = RetryClient(
             client_session=self.websession,
             retry_options=ExponentialRetry(attempts=3, start_timeout=5),
-        )    
+        )
+        self.source = source
 
-    async def station_by_id(self, station_id: str) -> ShellChargingStation | None:
+    async def station_by_id(self, station_id: str) -> ShellChargingStation | EnecoChargingStation | None:
         """
         Perform API request.
         Usually yields just one Location object with one or multiple chargers.
         """
-        station = None
 
+        if self.source == "eneco":
+            return await self.getEnecoChargingStation(station_id)
+        
+        if self.source == "shell":
+            return await self.getShellChargingStation(station_id)(station_id)
+
+    async def getShellChargingStation(self, station_id):
+        url = URL(
+            "https://ui-map.shellrecharge.com/api/map/v2/locations/search/{}".format(
+                station_id
+            )
+        )
+        response = await self.json_get_with_retry_client(url)
+        
+        if pydantic.version.VERSION.startswith("1"):
+            station = ShellChargingStation.parse_obj(response[0])
+        else:
+            station = ShellChargingStation.model_validate(response[0])
+
+        return station
+
+    async def getEnecoChargingStation(self, station_id):
         url = URL(
             "https://ui-map.shellrecharge.com/api/map/v2/locations/search/{}".format(
                 station_id
@@ -56,16 +78,15 @@ class EVApi:
         return station
 
 
-
     # async def nearby_stations(self, coordinates: Coords) -> list[ChargingStation] | None :
-    async def nearby_stations(self, origin, coordinates: Coords, filter = "") -> NearestChargingStations | None :
+    async def nearby_stations(self, origin: str, coordinates: Coords, onlyEnecoStations: bool, filter:str = "") -> NearestChargingStations | None :
         """
         Perform API request.
         Usually yields list of station object with one or multiple chargers.
         """
         stations: list[EnecoChargingStation]
         _LOGGER.debug(f"searching nearby_stations for coordinates {coordinates}")
-        stations = await self.getEnecoChargingStations(coordinates)
+        stations = await self.getEnecoChargingStations(coordinates, onlyEnecoStations)
         # _LOGGER.debug(f"nearby_stations found {stations}")
 
         # sorted_locations = sorted(stations, key=lambda x: x.get("distance", float("inf"), reverse=False))
@@ -158,7 +179,7 @@ class EVApi:
 
     
     # def getChargingStations(self, postalcode, country, town, locationinfo, fueltype: ConnectorTypes, single):
-    async def getEnecoChargingStations(self, origin_coordinates) -> list[EnecoChargingStation] | None:
+    async def getEnecoChargingStations(self, origin_coordinates: Coords, onlyEnecoStations: bool) -> list[EnecoChargingStation] | None:
         # _LOGGER.debug(f"Eneco charge points Fueltype: {connector_types} filter {filter} origin: {resolved_origin}")
         # header = {"Content-Type": "application/json","Accept": "application/json", "Origin": "https://www.eneco-emobility.com", "Referer": "https://www.eneco-emobility.com/be-nl/chargemap", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36", "X-Requested-With": "XMLHttpRequest"}
         # https://www.eneco-emobility.com/be-nl/chargemap#
@@ -184,21 +205,10 @@ class EVApi:
         while someTypesMissing:
             currRadius = _RADIUS * loop
             loop += 1
-            boundingbox = self.create_boundingbox_array(origin_coordinates.get('lat'), origin_coordinates.get('lon'), currRadius)
+            boundingbox = self.create_boundingbox_array(locationInfoLat,locationInfoLon, currRadius)
             origin_coordinates['bounds'] = boundingbox
             # _LOGGER.debug(f"boundingbox: {boundingbox}, coordinates: {origin_coordinates}, radius: {currRadius}")
 
-            # for boundingbox in origin_coordinates.get('bounds'):
-            # if boundingbox:
-            # boundingbox = origin_coordinates.get('bounds')
-            # _LOGGER.debug(f"Retrieving eneco data, boundingbox: {boundingbox}, radius: {radius}")
-
-            # response = self.s.get('https://www.eneco-emobility.com/be-nl/chargemap', headers=header, timeout=50)
-            # if response.status_code != 200:
-            #     _LOGGER.error(f"ERROR: Eneco URL: {eneco_url}, {payload}, {response.text}")
-            
-            # min_lat={boundingbox[0]}&max_lat={boundingbox[2]}&min_long={boundingbox[1]}&max_long={boundingbox[3]}
-            # payload = {"bounds":{"northWest":[boundingbox[2],boundingbox[1]],"northEast":[boundingbox[2],boundingbox[3]],"southEast":[boundingbox[0],boundingbox[3]],"southWest":[boundingbox[0],boundingbox[1]]},"filters":{"fastCharging":"false","ultraFastCharging":"false"},"zoomLevel":7}
             deault_payload = self.defaultEnecoPayload(origin_coordinates)
             try:
                 totalEves = await self.countChargingStationsPayload(deault_payload)
@@ -213,11 +223,29 @@ class EVApi:
                 "bounds": deault_payload.get('bounds'),
                 "filters": {
                     "availableNow": True if standardSpeedFound and highspeedFound and superHighSpeedFound else False, 
-                    "isAllowed": True, 
+                    "isAllowed": onlyEnecoStations, 
                     "speed": [11 if not standardSpeedFound else 50 if not highspeedFound else 100, 350], 
                     "connectorTypes": []},
                 "zoomLevel": 16
             }
+            lon_min = boundingbox[1]
+            lon_max = boundingbox[3]
+            lat_min = boundingbox[0]
+            lat_max = boundingbox[2]
+            zoomlevel = 17
+            #return [
+            #     lat - lat_delta,  # south
+            #     lon - lon_delta,  # west
+            #     lat + lat_delta,  # north
+            #     lon + lon_delta   # east
+            # ]
+            url_shell = f"https://ui-map.shellrecharge.com/api/map/v2/markers/{lon_min}/{lon_max}/{lat_min}/{lat_max}/zoomlevel"
+            #only shell card
+            url_shell = f"https://ui-map.shellrecharge.com/api/map/v2/markers/4.807961539062489/4.972756460937489/52.35012933719833/52.39786576367266/14/available,unavailable,occupied,unknown/TepcoCHAdeMO,Type2,Type3,Type1,Type2Combo,Domestic/3.3/excludeUnsupportedTokens"
+            #only available and shell card
+            url_shell = f"https://ui-map.shellrecharge.com/api/map/v2/markers/4.807961539062489/4.972756460937489/52.35012933719833/52.39786576367266/14/available/TepcoCHAdeMO,Type2,Type3,Type1,Type2Combo,Domestic/3.3/excludeUnsupportedTokens"
+            #using locationUid
+            url_shell_location_details = f"https://ui-map.shellrecharge.com/api/map/v2/locations/5293763"
             try:
                 eneco_stations = await self.json_post_with_retry_client(eneco_url_polygon, payload, header)
             except Exception as e:
