@@ -68,7 +68,7 @@ Optional also:
 
 
 ## Integration
-TODO
+
 ### Sensors
 - <code>sensor.nearest_station_[origin]</code>: sensor with info of nearest charging station
 - <code>sensor.nearest_available_station_[origin]</code>: sensor with info of nearest available charging station
@@ -119,74 +119,6 @@ TODO
     
     </details>
     
-- <details><summary>Sensor with lowest diesel and super price in neighbourhood: <code>sensor.EVChargingStations_[fueltype]_[postalcode]_[*]km</code> for 5km and 10km </summary>
-
-    | Attribute | Description |
-    | --------- | ----------- |
-    | State     | Price |
-    | `last update `   | Timestamp info last retrieved from the carbu.com website. (There is a throttling of 1h active to limit requests. Restart HA to force update) |
-    | `fueltype`   | Fuel type |
-    | `fuelname` | Full name of the fuel type |
-    | `postalcode`  | Postalcode at which the price was retrieved |
-    | `supplier`  | Name of the supplier of the fuel |
-    | `supplier_brand`  | Brand name of the supplier (eg Shell, Texaco, ...) Not supported for DE |
-    | `url`  | Url with details of the supplier |
-    | `entity_picture`  | Url with the logo of the supplier |
-    | `address`  | Address of the supplier |
-    | `city`  | City of the supplier |
-    | `latitude`  | Latitude of the supplier Not supported for DE |
-    | `longitude`  | Longitude of the supplier Not supported for DE |
-    | `region`  | Distand 5km or 10km around postal code in which cheapest prices is found |
-    | **`distance`**  | **Distance to the supplier vs postal code** ( Not supported for IT )|
-    | **`price diff`**  | **Price difference between the cheapest found in region versus the local price** |
-    | `price diff %`  | Price difference in % between the cheapest found in region versus the local price |
-    | `price diff 30l`  | Price difference for 30 liters between the cheapest found in region versus the local price |
-    | `date`  | Date for the validity of the price |
-    | `quantity`  | Quantity of fuel (only for fuel oil) |
-    | `score`  | Score of the supplier |
-    | `id`  | Unique id of the supplier |
-    </details>
-
-- <details><summary>Sensor with official diesel and super price <code>sensor.EVChargingStations_[fueltype]_officia_[fueltypecode]</code>, only supported for BE/FR/LU/NL</summary>
-
-    | Attribute | Description |
-    | --------- | ----------- |
-    | State     | **Price** |
-    | `last update `   | Timestamp info last retrieved from the carbu.com website. (There is a throttling of 1h active to limit requests. Restart HA to force update) |
-    | `fueltype`   | Fuel type |
-    | `price`   | Price |
-    | `date`  | Date for the validity of the price |
-    | `country`  | Country |
-    | `price next`   | Next official price |
-    | `date next`  | Date as of when the next price will be applicable |
-    </details>
-    
-- <details><summary>Sensor diesel and super prediction: <code>sensor.EVChargingStations_[fueltype]_prediction</code> Only supported for BE/FR/LU</summary>
-    
-    | Attribute | Description |
-    | --------- | ----------- |
-    | State     | Percentage of increase or decrease predicted for coming days |
-    | `last update` | Timestamp info last retrieved from the carbu.com website. (There is a throttling of 1h active to limit requests. Restart HA to force update) |
-    | `fueltype`   | Fuel type |
-    | **`trend`** | **Percentage of increase or decrease predicted for coming days** |
-    | `date`  | Date for the validity of the price |
-    </details>
-    
-- <details><summary>Sensor fuel oil prediction: <code>sensor.EVChargingStations_[oiltype]_[quantity]l_prediction</code> Only supported for BE/FR/LU</summary>
-
-    | Attribute | Description |
-    | --------- | ----------- |
-    | State     | Percentage of increase or decrease predicted for coming days |
-    | `last update `   | Timestamp info last retrieved from the carbu.com website. (There is a throttling of 1h active to limit requests. Restart HA to force update) |
-    | `fueltype`   | Fuel type |
-    | `fuelname` | Full name of the fuel type |
-    | **`trend`** | **Percentage of increase or decrease predicted for coming days** |
-    | `price` | Predicted maximum price for type and quantity |
-    | `date`  | Date for the validity of the price |
-    | `current official max price`  | Currently official max price |
-    | `current official max price date`  | Date of the currently official max price |
-    | `quantity`  | Quantity for which the price is expected. Main difference between below or above 2000l |
-    </details>
 
 ### Services / Actions
 A **service `EVChargingStations.get_lowest_fuel_price`** to get the lowest fuel price in the area of a postalcode is available. For a given fuel type and a distance in km, the lowest fuel price will be fetched and an event will be triggered with all the details found. Similar, the service **`EVChargingStations.get_lowest_fuel_price_coor`** can be called providing latitude and longitude coordinates instead of country, postalcode and town.
