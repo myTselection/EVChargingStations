@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 DateTimeISO8601 = str
 ShellStatus = Literal["Available", "Unavailable", "Occupied", "Unknown"]
-EnecoStatus = Literal["AVAILABLE", "CHARGING", "OUTOFORDER", "UNAVAILABLE", "UNKNOWN", "BLOCKED"]
+EnecoStatus = Literal["AVAILABLE", "CHARGING", "OUTOFORDER", "UNAVAILABLE", "UNKNOWN", "BLOCKED", "INOPERATIVE"]
 ConnectorTypes = Literal[
     "Avcon",
     "Domestic",
