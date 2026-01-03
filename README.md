@@ -197,6 +197,11 @@ To show the [Eneco charging map](https://www.eneco-emobility.com/be-nl/chargemap
    ```
 
 ## Example info markdown card
+Below markdown will only show unique charging stations, so if nearest and nearest available are the same, it will only be shown once.
+
+A link towards Eneco chargemap is available on the name of the charging stations
+
+A link to Google maps directions from car to charging station is available on the address of the charging station
 
 To re-use, replace 
 - `device_tracker_car_position` with origin used during setup of EVChargingStation
