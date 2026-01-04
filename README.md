@@ -119,6 +119,7 @@ Optional also:
     | `start_tariff`  | Price charging cost info of the charging station to start charging session or false |
     | `parking_time_costs`  | Price charging cost info of the charging station for parking during charging or false |
     | `price_description`  | Price charging cost info of the charging station |
+    | `map_label` | Attribute that can be used to show on map, currently showning `<available connectors>/<total connectors (<max power>kWh)` |
     
     </details>
     
@@ -134,32 +135,32 @@ To show a map in Home Assistant with all nearest charging stations you can use a
    entities:
      - entity: sensor.nearest_station_device_tracker_car_position
        label_mode: attribute
-       attribute: connector_max_power
+       attribute: map_label
        focus: false
      - entity: >-
          sensor.nearest_available_station_device_tracker_car_position
        label_mode: attribute
-       attribute: connector_max_power
+       attribute: map_label
        focus: true
      - entity: >-
          sensor.nearest_highspeed_station_device_tracker_car_position
        label_mode: attribute
-       attribute: connector_max_power
+       attribute: map_label
        focus: false
      - entity: >-
          sensor.nearest_available_highspeed_station_device_tracker_car_position
        label_mode: attribute
-       attribute: connector_max_power
+       attribute: map_label
        focus: true
      - entity: >-
          sensor.nearest_superhighspeed_station_device_tracker_car_position
        label_mode: attribute
-       attribute: connector_max_power
+       attribute: map_label
        focus: false
      - entity: >-
          sensor.nearest_available_superhighspeed_station_device_tracker_car_position
        label_mode: attribute
-       attribute: connector_max_power
+       attribute: map_label
        focus: true
      - entity: device_tracker.car_position
    theme_mode: auto
