@@ -119,7 +119,7 @@ Optional also:
     | `start_tariff`  | Price charging cost info of the charging station to start charging session or false |
     | `parking_time_costs`  | Price charging cost info of the charging station for parking during charging or false |
     | `price_description`  | Price charging cost info of the charging station |
-    | `map_label` | Attribute that can be used to show on map, currently showning `<available connectors>/<total connectors (<max power>kWh)` |
+    | `map_label` | Attribute that can be used to show on map, currently showning `<available connectors>/<total connectors <max power>kWh` |
     
     </details>
     
