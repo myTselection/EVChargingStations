@@ -436,6 +436,7 @@ class NearestSensor(
                     "start_tariff": evse.prices.startTariff if evse.prices else None,
                     "parking_time_costs": evse.prices.parkingTimeCosts if evse.prices else None,
                     "price_description": evse.prices.description if evse.prices else None,
+                    "map_label": f"{self.station.evseSummary.available}/{self.station.evseSummary.total}{' (' + str(int(connector.maxPower/1000)) + 'kWh)' if connector.maxPower else ''}",
                 }
                 self._attr_extra_state_attributes = extra_data
         except AttributeError as err:
