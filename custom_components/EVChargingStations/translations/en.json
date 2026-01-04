@@ -32,7 +32,7 @@
           "public": {
             "data": {
               "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country",
-              "only_eneco": "Only show Eneco stations"
+              "only_eneco": "Only show Eneco card supported stations"
             },
             "name": "Public nearest charge startions"
           }

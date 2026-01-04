@@ -56,22 +56,19 @@ async def async_setup_entry(
         if isinstance(coordinator, StationsPublicDataUpdateCoordinator):
             nearestChargingStations: NearestChargingStations = coordinator.data
 
-            for field_name, station in nearestChargingStations.__dict__.items():
-                if station is not None:
-                    try:
-                        # _LOGGER.debug(f"field_name: {field_name}, station value: {station}")
-                        sensor_type = StationSensorType(field_name)
-                        sensor: SensorEntity = NearestSensor(coordinator=coordinator, type=sensor_type)
-                        entities.append(sensor)
-                        # for evse in station.evses:
-                        #     _LOGGER.debug(f"field_name: {field_name}, station value: {station}, evse.uid {evse.uid}")
-                        #     evse_id = evse.uid
-                        #     sensor: SensorEntity = NearestSensor(
-                        #         evse_id=evse_id, coordinator=coordinator, type=sensor_type
-                        #     )
-                        #     entities.append(sensor)
-                    except ValueError:
-                        continue  # field not represented in enum
+            for nearestStationType in StationSensorType:
+                sensor: SensorEntity = NearestSensor(coordinator=coordinator, type=nearestStationType)
+                entities.append(sensor)
+
+            # for field_name, station in nearestChargingStations.__dict__.items():
+            #     if station is not None:
+            #         try:
+            #             # _LOGGER.debug(f"field_name: {field_name}, station value: {station}")
+            #             sensor_type = StationSensorType(field_name)
+            #             sensor: SensorEntity = NearestSensor(coordinator=coordinator, type=sensor_type)
+            #             entities.append(sensor)
+            #         except ValueError:
+            #             continue  # field not represented in enum
 
         elif isinstance(coordinator, EVRechargePublicDataUpdateCoordinator):
             for evse in coordinator.data.evses:
@@ -408,7 +405,10 @@ class NearestSensor(
                     "country": self.station.address.country,
                     "latitude": self.station.coordinates.lat,
                     "longitude": self.station.coordinates.lng,
-                    "distance": self.station.distance,
+                    "straight_line_distance": self.station.straight_line_distance,
+                    "route_distance": self.station.route_distance,
+                    "route_duration": self.station.route_duration,
+                    "route_name": self.station.route_name,
                     "operator_name": self.station.ownerName,
                     # "suboperator_name": self.station.owner.name,
                     "url": self.station.url,
@@ -436,7 +436,7 @@ class NearestSensor(
                     "start_tariff": evse.prices.startTariff if evse.prices else None,
                     "parking_time_costs": evse.prices.parkingTimeCosts if evse.prices else None,
                     "price_description": evse.prices.description if evse.prices else None,
-                    "map_label": f"{self.station.evseSummary.available}/{self.station.evseSummary.total}{' (' + str(int(connector.maxPower/1000)) + 'kWh)' if connector.maxPower else ''}",
+                    "map_label": f"{self.station.evseSummary.available}/{self.station.evseSummary.total}{' ' + str(int(connector.maxPower/1000)) + 'kWh' if connector.maxPower else ''}",
                 }
                 self._attr_extra_state_attributes = extra_data
         except AttributeError as err:

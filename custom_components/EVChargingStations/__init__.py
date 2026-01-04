@@ -47,7 +47,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
 
-    api = EVApi(websession=async_get_clientsession(hass))
+    evapi = EVApi(websession=async_get_clientsession(hass))
 
     coordinator: EVRechargePublicDataUpdateCoordinator | EVRechargeUserDataUpdateCoordinator | StationsPublicDataUpdateCoordinator
     if entry.data.get(CONF_PUBLIC) and entry.data[CONF_PUBLIC].get(CONF_ORIGIN):
@@ -56,16 +56,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         httpx_client = get_async_client(hass)
         routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
         coordinator = StationsPublicDataUpdateCoordinator(
-            hass, api, entry, routeCalculatorClient
+            hass, evapi, entry, routeCalculatorClient
         )
     elif entry.data.get(CONF_SINGLE) and entry.data[CONF_SINGLE].get(CONF_SERIAL_NUMBER):
         coordinator = EVRechargePublicDataUpdateCoordinator(
-            hass, api, entry.data[CONF_SINGLE][CONF_SERIAL_NUMBER]
+            hass, evapi, entry.data[CONF_SINGLE][CONF_SERIAL_NUMBER]
         )
     else:
         coordinator = EVRechargeUserDataUpdateCoordinator(
             hass,
-            await api.get_user(
+            await evapi.get_user(
                 entry.data[CONF_SHELL][CONF_EMAIL],
                 entry.data[CONF_SHELL][CONF_PASSWORD],
                 entry.data[CONF_SHELL].get(CONF_API_KEY),

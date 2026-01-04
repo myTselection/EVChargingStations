@@ -222,8 +222,11 @@ class EnecoChargingStation(BaseModel):
     source: Optional[str] = None
     evses: List[EnecoEvse]
     facilities: List[str]
-    distance: Optional[float] = None
+    straight_line_distance: Optional[float] = None
     url: Optional[str] = None
+    route_distance: Optional[float] = None
+    route_duration: Optional[float] = None
+    route_name: Optional[str] = None
 
 class NearestChargingStations(BaseModel):
     nearest_station: Optional[EnecoChargingStation] = None

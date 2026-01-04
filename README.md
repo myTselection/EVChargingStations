@@ -92,7 +92,10 @@ Optional also:
     | `country`  | Country of the charging station |
     | `latitude`  | Latitude of the charging station |
     | `longitude`  | Longitude of the charging station |
-    | `distance`  | Approximate distance between charging station and set `origin` |
+    | `straight_line_distance`  | Approximate straight_line_distance between charging station and set `origin`, used for selecting nearest station |
+    | `route_distance`  | Approximate Waze distance in km between charging station and set `origin`, NOT used for selecting nearest station, only calculated for selected stations |
+    | `route_duration`  | Approximate Waze duration in minutes between charging station and set `origin`, NOT used for selecting nearest station, only calculated for selected stations |
+    | `route_name`  | Approximate straight_line_distance between charging station and set `origin` |
     | `operator_name`  | Name of the operator of the charging station |
     | `url`  | Direct URL to the Eneco chargemap with details of the charging station |
     | `facilities`  | Facilities available close to the charging station |
@@ -217,7 +220,7 @@ content: >-
 
 
   ### Nearest available
-  ({{state_attr('sensor.nearest_available_station_device_tracker_car_position','distance')}}km):
+  ({{state_attr('sensor.nearest_available_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_available_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_station_device_tracker_car_position','url')}})
 
@@ -240,7 +243,7 @@ content: >-
   %}
 
   ### Nearest 
-  ({{state_attr('sensor.nearest_station_device_tracker_car_position','distance')}}km):
+  ({{state_attr('sensor.nearest_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_station_device_tracker_car_position','url')}})
 
@@ -265,7 +268,7 @@ content: >-
   state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')%}
 
   ### High speed available
-  ({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','distance')}}km):
+  ({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','url')}})
 
@@ -289,7 +292,7 @@ content: >-
   %}
 
   ### High speed
-  ({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','distance')}}km):
+  ({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','url')}})
 
@@ -318,7 +321,7 @@ content: >-
   state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')%}
 
   ### Super highspeed available
-  ({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','distance')}}km):
+  ({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','url')}})
 
@@ -345,7 +348,7 @@ content: >-
   %}
 
   ### Super highspeed
-  ({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','distance')}}km):
+  ({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','url')}})
 

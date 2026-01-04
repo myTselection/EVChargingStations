@@ -79,20 +79,20 @@ class EVApi:
 
 
     # async def nearby_stations(self, coordinates: Coords) -> list[ChargingStation] | None :
-    async def nearby_stations(self, origin: str, coordinates: Coords, onlyEnecoStations: bool, filter:str = "") -> NearestChargingStations | None :
+    async def nearby_stations(self, origin: str, origin_coordinates: Coords, onlyEnecoStations: bool, filter:str = "") -> NearestChargingStations | None :
         """
         Perform API request.
         Usually yields list of station object with one or multiple chargers.
         """
         stations: list[EnecoChargingStation]
-        _LOGGER.debug(f"searching nearby_stations for coordinates {coordinates}")
-        stations = await self.getEnecoChargingStations(coordinates, onlyEnecoStations)
+        _LOGGER.debug(f"searching nearby_stations for coordinates {origin_coordinates}")
+        stations = await self.getEnecoChargingStations(origin_coordinates, onlyEnecoStations)
         # _LOGGER.debug(f"nearby_stations found {stations}")
 
         # sorted_locations = sorted(stations, key=lambda x: x.get("distance", float("inf"), reverse=False))
         filtered_sorted = sorted(
             stations if filter == "" else (station for station in stations if filter in station.owner.name.lower()),
-            key=lambda x: x.distance if hasattr(x, "distance") and x.distance is not None else float("inf"), reverse=False
+            key=lambda x: x.straight_line_distance if hasattr(x, "distance") and x.straight_line_distance is not None else float("inf"), reverse=False
         )
 
         # _LOGGER.debug(f"filtered_sorted: {filtered_sorted}")
@@ -102,36 +102,23 @@ class EVApi:
 
         for station in filtered_sorted:
             # _LOGGER.debug(f"station: {station}")
-            priceAdded = False
             if nearestChargingStations.nearest_station == None:
-                if not priceAdded:
-                    await self.addEnecoPrices(station)
-                    priceAdded = True 
+                await self.addEnecoPrices(station)
                 nearestChargingStations.nearest_station = station
             if nearestChargingStations.nearest_available_station == None and station.evseSummary.available > 0:
-                if not priceAdded:
-                    await self.addEnecoPrices(station)
-                    priceAdded = True 
+                await self.addEnecoPrices(station)
                 nearestChargingStations.nearest_available_station = station
             if nearestChargingStations.nearest_highspeed_station == None and station.evseSummary.maxSpeed > 50000:
-                if not priceAdded:
-                    await self.addEnecoPrices(station)
-                    priceAdded = True 
+                await self.addEnecoPrices(station)
                 nearestChargingStations.nearest_highspeed_station = station
             if nearestChargingStations.nearest_available_highspeed_station == None and station.evseSummary.maxSpeed > 50000 and station.evseSummary.available > 0:
-                if not priceAdded:
-                    await self.addEnecoPrices(station)
-                    priceAdded = True 
+                await self.addEnecoPrices(station)
                 nearestChargingStations.nearest_available_highspeed_station = station
             if nearestChargingStations.nearest_superhighspeed_station == None and station.evseSummary.maxSpeed > 100000:
-                if not priceAdded:
-                    await self.addEnecoPrices(station)
-                    priceAdded = True 
+                await self.addEnecoPrices(station)
                 nearestChargingStations.nearest_superhighspeed_station = station
             if nearestChargingStations.nearest_available_superhighspeed_station == None and station.evseSummary.maxSpeed > 100000 and station.evseSummary.available > 0:
-                if not priceAdded:
-                    await self.addEnecoPrices(station)
-                    priceAdded = True 
+                await self.addEnecoPrices(station)
                 nearestChargingStations.nearest_available_superhighspeed_station = station
 
             #break when all set
@@ -179,7 +166,7 @@ class EVApi:
 
     
     # def getChargingStations(self, postalcode, country, town, locationinfo, fueltype: ConnectorTypes, single):
-    async def getEnecoChargingStations(self, origin_coordinates: Coords, onlyEnecoStations: bool) -> list[EnecoChargingStation] | None:
+    async def getEnecoChargingStations(self, origin_coordinates, onlyEnecoStations: bool) -> list[EnecoChargingStation] | None:
         # _LOGGER.debug(f"Eneco charge points Fueltype: {connector_types} filter {filter} origin: {resolved_origin}")
         # header = {"Content-Type": "application/json","Accept": "application/json", "Origin": "https://www.eneco-emobility.com", "Referer": "https://www.eneco-emobility.com/be-nl/chargemap", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36", "X-Requested-With": "XMLHttpRequest"}
         # https://www.eneco-emobility.com/be-nl/chargemap#
@@ -239,13 +226,14 @@ class EVApi:
             #     lat + lat_delta,  # north
             #     lon + lon_delta   # east
             # ]
-            url_shell = f"https://ui-map.shellrecharge.com/api/map/v2/markers/{lon_min}/{lon_max}/{lat_min}/{lat_max}/zoomlevel"
+            url_shell = f"https://ui-map.shellrecharge.com/api/map/v2/markers/{lon_min}/{lon_max}/{lat_min}/{lat_max}/{zoomlevel}"
             #only shell card
             url_shell = f"https://ui-map.shellrecharge.com/api/map/v2/markers/4.807961539062489/4.972756460937489/52.35012933719833/52.39786576367266/14/available,unavailable,occupied,unknown/TepcoCHAdeMO,Type2,Type3,Type1,Type2Combo,Domestic/3.3/excludeUnsupportedTokens"
             #only available and shell card
             url_shell = f"https://ui-map.shellrecharge.com/api/map/v2/markers/4.807961539062489/4.972756460937489/52.35012933719833/52.39786576367266/14/available/TepcoCHAdeMO,Type2,Type3,Type1,Type2Combo,Domestic/3.3/excludeUnsupportedTokens"
             #using locationUid
-            url_shell_location_details = f"https://ui-map.shellrecharge.com/api/map/v2/locations/5293763"
+            locationUid = 5293763
+            url_shell_location_details = f"https://ui-map.shellrecharge.com/api/map/v2/locations/{locationUid}"
             try:
                 eneco_stations = await self.json_post_with_retry_client(eneco_url_polygon, payload, header)
             except Exception as e:
@@ -267,7 +255,7 @@ class EVApi:
                     station.address.country = station.evses[0].evseId[:2]
 
                 distance = self.haversine_distance(float(str(station_lat).replace(',','.')), float(str(station_lon).replace(',','.')), locationInfoLat, locationInfoLon)
-                station.distance = distance
+                station.straight_line_distance = distance
                 station.source = "Eneco"
                 if station.evseSummary is not None:
                     if station.evseSummary.available > 0:
@@ -317,6 +305,7 @@ class EVApi:
             else:
                 _LOGGER.debug(f"Eneco prices no connectors found: {evse}")
         return station
+    
     
     def create_boundingbox_array(self, lat, lon, radius_m):
         earth_radius_m = 6371000

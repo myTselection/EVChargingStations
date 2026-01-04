@@ -1,6 +1,7 @@
 """Shell Recharge data update coordinators."""
 
 import logging
+import asyncio
 from asyncio.exceptions import CancelledError
 
 from aiohttp.client_exceptions import ClientError
@@ -9,18 +10,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
 from .evrecharge import EVApi, ShellChargingStation, LocationEmptyError
-from .evrecharge.models import NearestChargingStations, Coords
+from .evrecharge.models import NearestChargingStations, Coords, EnecoChargingStation
 from .evrecharge.user import AssetsEmptyError, DetailedChargePointEmptyError, User
 from .evrecharge.usermodels import DetailedAssets
 # from .location import LocationSession
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator, WRCError
 
 
-from .const import DOMAIN, UPDATE_INTERVAL, SerialNumber,CONF_ORIGIN, CONF_API_KEY, CONF_PASSWORD, CONF_EMAIL, CONF_SERIAL_NUMBER, CONF_SINGLE, CONF_PUBLIC, CONF_ONLY_ENECO
+from .const import DOMAIN, UPDATE_INTERVAL, SerialNumber,CONF_ORIGIN, CONF_API_KEY, CONF_PASSWORD, CONF_EMAIL, CONF_SERIAL_NUMBER, CONF_SINGLE, CONF_PUBLIC, CONF_ONLY_ENECO, StationSensorType
 
 _LOGGER = logging.getLogger(__name__)
-_GEO_API_KEY = ""
-
+SECONDS_BETWEEN_API_CALLS = 0.5
 
 class EVRechargeUserDataUpdateCoordinator(DataUpdateCoordinator[DetailedAssets]):
     """Handles data updates for private chargers."""
@@ -162,7 +162,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
     config_entry: ConfigEntry
 
     def __init__(
-        self, hass: HomeAssistant, api: EVApi, config_entry: ConfigEntry, routeCalculatorClient: WazeRouteCalculator
+        self, hass: HomeAssistant, evapi: EVApi, config_entry: ConfigEntry, routeCalculatorClient: WazeRouteCalculator
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
@@ -172,7 +172,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
             config_entry=config_entry,
             update_interval=UPDATE_INTERVAL,
         )
-        self.api = api
+        self._evapi = evapi
         self._origin = config_entry.data[CONF_PUBLIC].get(CONF_ORIGIN)
         self._onlyEnecoStations = config_entry.data[CONF_PUBLIC].get(CONF_ONLY_ENECO)
         self._routeCalculatorClient = routeCalculatorClient
@@ -189,9 +189,9 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
         origin_coordinates = await self._routeCalculatorClient._ensure_coords(resolved_origin)
         _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}")
         try:
-            data = await self.api.nearby_stations(self._origin, origin_coordinates, self._onlyEnecoStations)
+            data = await self._evapi.nearby_stations(self._origin, origin_coordinates, self._onlyEnecoStations)
+            await self.enrichRouteDetails(data, origin_coordinates)
             # _LOGGER.debug(f"nearby_stations: {data}")
-
         except LocationEmptyError as exc:
             _LOGGER.error(
                 "Error occurred while fetching data for charger(s) %s, not found, or coordinates are invalid, %s",
@@ -235,3 +235,59 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed("API returned None data")
 
         return data
+
+
+    async def enrichRouteDetails(self, nearestChargingStations: NearestChargingStations, origin_coordinates):
+        latestStationId = None
+        latestRouteDuration = None
+        latestRouteDistance = None
+        latestRouteName = None
+        for nearestStationType in StationSensorType:
+            if not(hasattr(nearestChargingStations, nearestStationType.value)):
+                continue
+
+            station: EnecoChargingStation | None = getattr(
+                nearestChargingStations,
+                nearestStationType.value,
+                None,
+            )
+            if station:
+                if station.id == latestStationId:
+                    station.route_duration = latestRouteDuration
+                    station.route_distance = latestRouteDistance
+                    station.route_name = latestRouteName
+                    continue
+                origin_coordinates_str = f"{origin_coordinates.get('lat')},{origin_coordinates.get('lon')}"
+                destination_coordinates_str = f"{station.coordinates.lat},{station.coordinates.lng}"
+                try:
+                    # Grab options on every update
+                    realtime = False
+                    vehicle_type = ""
+                    avoid_toll_roads = False
+                    avoid_subscription_roads = False
+                    avoid_ferries = False
+                    units = "metric"
+                    alternatives = 1
+                    routes = await self._routeCalculatorClient.calc_routes(
+                        start=origin_coordinates_str,
+                        end=destination_coordinates_str,
+                        vehicle_type=vehicle_type,
+                        avoid_toll_roads=avoid_toll_roads,
+                        avoid_subscription_roads=avoid_subscription_roads,
+                        avoid_ferries=avoid_ferries,
+                        real_time=realtime,
+                        alternatives=alternatives
+                    )
+                    _LOGGER.info(f"enrichRouteDetails routes: {routes}")
+                    if len(routes) >= 1:
+                        route = routes[0]
+                        station.route_distance = round(route.distance,2) if route.distance else route.distance
+                        station.route_duration = round(route.duration,2) if route.duration else route.duration
+                        station.route_name = route.name
+                        latestStationId = station.id
+                        latestRouteDuration = station.route_duration
+                        latestRouteDistance = station.route_distance
+                        latestRouteName = route.name
+                    await asyncio.sleep(SECONDS_BETWEEN_API_CALLS)
+                except ValueError:
+                    continue  # field not represented in enum
