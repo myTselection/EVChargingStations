@@ -190,6 +190,8 @@ class EVApi:
         superHighSpeedAvailableFound = False
         loop = 1
         while someTypesMissing:
+            if loop > 10:
+                break
             currRadius = _RADIUS * loop
             loop += 1
             boundingbox = self.create_boundingbox_array(locationInfoLat,locationInfoLon, currRadius)
