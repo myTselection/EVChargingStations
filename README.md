@@ -192,7 +192,7 @@ To show the [Eneco charging map](https://www.eneco-emobility.com/be-nl/chargemap
      - states
    card:
      type: iframe
-     aspect_ratio: 50%
+     aspect_ratio: 185%
      url: ${states['sensor.car_eneco_charging_station_url'].state}
 
    ```
