@@ -39,14 +39,14 @@ find_nearest:
               text:
         only_eneco:
             name: Only Eneco
-            description: Only show Eneco card supported station
+            description: Only show Eneco card supported station, default is False
             required: False
             example: True
             selector:
               boolean:
         min_power:
             name: Minimum power
-            description: Minimum power in kW, eg 50
+            description: Minimum power in kW, eg 50, default is 0
             required: False
             example: 50
             default: 0
@@ -54,7 +54,7 @@ find_nearest:
               template:
         available:
             name: Only available station
-            description: Only get a currently available station
+            description: Only get a currently available station, default is False
             required: False
             example: True
             selector:
