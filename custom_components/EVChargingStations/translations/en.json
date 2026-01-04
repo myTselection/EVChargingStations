@@ -48,5 +48,29 @@
     "session_toggle": {
       "message": "Could not {toggle} session on {charger} with {rfid}."
     }
+  },
+  "services": {
+    "find_nearest": {
+      "name": "Find the nearest EV Charging Station",
+      "description": "Find the EV Charging Station nearest to a given location and meeting specific criteria.",
+      "fields": {
+        "origin": {
+          "name": "Origin",
+          "description": "Origin eg 51.330436, 3.802043 or person.fred or zone.home or street, city, country"
+        },
+        "only_eneco": {
+          "name": "Only Eneco",
+          "description": "Only show Eneco card supported station"
+        },
+        "min_power": {
+          "name": "Minimum power",
+          "description": "Minimum power in kW, eg 50"
+        },
+        "available": {
+          "name": "Only available station",
+          "description": "Only get a currently available station"
+        }
+      }
+    }
   }
 }

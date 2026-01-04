@@ -21,6 +21,8 @@ CONF_SERIAL_NUMBER = "serial_number"
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 CONF_API_KEY = "api_key"
+CONF_MIN_POWER = "min_power"
+CONF_AVAILABLE = "available"
 
 
 class StationSensorType(Enum):

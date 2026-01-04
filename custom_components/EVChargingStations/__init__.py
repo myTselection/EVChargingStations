@@ -7,23 +7,49 @@ import logging
 # import evrecharge
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.location import find_coordinates
 from .evrecharge import EVApi
 
-from .const import DOMAIN, CONF_ORIGIN, CONF_SINGLE, CONF_PUBLIC, CONF_SHELL, CONF_SERIAL_NUMBER, CONF_EMAIL, CONF_PASSWORD, CONF_API_KEY
+from .const import DOMAIN, CONF_ORIGIN, CONF_SINGLE, CONF_PUBLIC, CONF_SHELL, CONF_SERIAL_NUMBER, CONF_EMAIL, CONF_PASSWORD, CONF_API_KEY, CONF_ONLY_ENECO, CONF_MIN_POWER, CONF_AVAILABLE
 from .coordinator import (
     EVRechargePublicDataUpdateCoordinator,
     EVRechargeUserDataUpdateCoordinator,
-    StationsPublicDataUpdateCoordinator
+    StationsPublicDataUpdateCoordinator,
+    async_find_nearest
 )
 from pywaze.route_calculator import WazeRouteCalculator
+import voluptuous as vol
+from homeassistant.helpers.selector import (
+    BooleanSelector,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+    NumberSelector,
+)
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
+SERVICE_FIND_NEAREST = "find_nearest"
+SERVICE_FIND_NEAREST_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ORIGIN): TextSelector(),
+        vol.Optional(CONF_ONLY_ENECO, default=False): BooleanSelector(),
+        vol.Optional(CONF_MIN_POWER, default=0): NumberSelector(),
+        vol.Optional(CONF_AVAILABLE, default=False): BooleanSelector()
+    }
+)
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old entry."""
@@ -51,8 +77,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator: EVRechargePublicDataUpdateCoordinator | EVRechargeUserDataUpdateCoordinator | StationsPublicDataUpdateCoordinator
     if entry.data.get(CONF_PUBLIC) and entry.data[CONF_PUBLIC].get(CONF_ORIGIN):
-        resolved_origin = find_coordinates(hass, entry.data[CONF_PUBLIC].get(CONF_ORIGIN))
-        # user_input[PUBLIC][CONF_ORIGIN] = origin_coordinates
         httpx_client = get_async_client(hass)
         routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
         coordinator = StationsPublicDataUpdateCoordinator(
@@ -76,6 +100,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+
+    async def async_find_nearest_service(service: ServiceCall) -> ServiceResponse:
+        httpx_client = get_async_client(hass)
+        routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
+
+        origin = service.data[CONF_ORIGIN]
+        only_eneco = service.data[CONF_ONLY_ENECO]
+        min_power = service.data[CONF_MIN_POWER]
+        available = service.data[CONF_AVAILABLE]
+
+
+
+        response = await async_find_nearest(
+            hass=hass,
+            evapi=evapi,
+            origin=origin,
+            only_eneco=only_eneco,
+            min_power=min_power,
+            available=available,
+            routeCalculatorClient=routeCalculatorClient
+        )
+        return {"nearest_station": response}
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_FIND_NEAREST,
+        async_find_nearest_service,
+        SERVICE_FIND_NEAREST_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
     return True
 
 

@@ -54,21 +54,9 @@ async def async_setup_entry(
 
     if coordinator.data:
         if isinstance(coordinator, StationsPublicDataUpdateCoordinator):
-            nearestChargingStations: NearestChargingStations = coordinator.data
-
             for nearestStationType in StationSensorType:
                 sensor: SensorEntity = NearestSensor(coordinator=coordinator, type=nearestStationType)
                 entities.append(sensor)
-
-            # for field_name, station in nearestChargingStations.__dict__.items():
-            #     if station is not None:
-            #         try:
-            #             # _LOGGER.debug(f"field_name: {field_name}, station value: {station}")
-            #             sensor_type = StationSensorType(field_name)
-            #             sensor: SensorEntity = NearestSensor(coordinator=coordinator, type=sensor_type)
-            #             entities.append(sensor)
-            #         except ValueError:
-            #             continue  # field not represented in enum
 
         elif isinstance(coordinator, EVRechargePublicDataUpdateCoordinator):
             for evse in coordinator.data.evses:
@@ -269,10 +257,6 @@ class EVCardText(
                     return card
         raise HomeAssistantError("Charge card not found in coordinator cache")
 
-def snake_to_title(value: str) -> str:
-    words = value.split("_")
-    return " ".join(word.capitalize() for word in words)
-
 class NearestSensor(
     CoordinatorEntity[StationsPublicDataUpdateCoordinator],
     SensorEntity,
@@ -290,7 +274,7 @@ class NearestSensor(
         # self.evse_id = evse_id
         self.coordinator = coordinator
         self.type = type
-        self.type_snake = snake_to_title(self.type.value)
+        self.type_snake = " ".join(word.capitalize() for word in self.type.value.split("_"))  #snake_to_title(self.type.value)
         self.nearestChargingStations: NearestChargingStations = self.coordinator.data
         self.origin = self.nearestChargingStations.origin
         
