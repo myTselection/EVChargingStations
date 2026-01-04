@@ -196,7 +196,176 @@ To show the [Eneco charging map](https://www.eneco-emobility.com/be-nl/chargemap
 
    ```
 
+## Example info markdown card
+Below markdown will only show unique charging stations, so if nearest and nearest available are the same, it will only be shown once.
 
+A link towards Eneco chargemap is available on the name of the charging stations
+
+A link to Google maps directions from car to charging station is available on the address of the charging station
+
+To re-use, replace 
+- `device_tracker_car_position` with origin used during setup of EVChargingStation
+- `device_tracker.car_position` with entity id or sensor name of your car (or similar)
+
+```
+
+type: markdown
+content: >-
+  # Charging stations close to car
+
+
+
+  ### Nearest available
+  ({{state_attr('sensor.nearest_available_station_device_tracker_car_position','distance')}}km):
+
+  [{{state_attr('sensor.nearest_available_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_station_device_tracker_car_position','url')}})
+
+  >
+  🗺️[{{state_attr('sensor.nearest_available_station_device_tracker_car_position','address')}},
+  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','postal_code')}}
+  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_available_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_available_station_device_tracker_car_position','longitude')}}&travelmode=driving)
+
+  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','connector_max_power')}}kWh,
+  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_station_device_tracker_car_position','number_of_connectors')}}
+  available
+
+  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','facilities')}}
+
+
+  {% if
+  state_attr('sensor.nearest_station_device_tracker_car_position','external_id')
+  !=
+  state_attr('sensor.nearest_available_station_device_tracker_car_position','external_id')
+  %}
+
+  ### Nearest 
+  ({{state_attr('sensor.nearest_station_device_tracker_car_position','distance')}}km):
+
+  [{{state_attr('sensor.nearest_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_station_device_tracker_car_position','url')}})
+
+  >
+  🗺️[{{state_attr('sensor.nearest_station_device_tracker_car_position','address')}},
+  {{state_attr('sensor.nearest_station_device_tracker_car_position','postal_code')}}
+  {{state_attr('sensor.nearest_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_station_device_tracker_car_position','longitude')}}&travelmode=driving)
+
+  {{state_attr('sensor.nearest_station_device_tracker_car_position','connector_max_power')}}kWh,
+  {{state_attr('sensor.nearest_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_station_device_tracker_car_position','number_of_connectors')}}
+  beschikbaar
+
+  {{state_attr('sensor.nearest_station_device_tracker_car_position','facilities')}}
+
+  {% endif %}
+
+
+
+  {% if
+  state_attr('sensor.nearest_available_station_device_tracker_car_position','external_id')
+  !=
+  state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')%}
+
+  ### High speed available
+  ({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','distance')}}km):
+
+  [{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','url')}})
+
+  >
+  🗺️[{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','address')}},
+  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','postal_code')}}
+  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','longitude')}}&travelmode=driving)
+
+  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
+  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','number_of_connectors')}}
+  available
+
+  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','facilities')}}
+
+  {% endif %}
+
+  {% if
+  state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','external_id')
+  !=
+  state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')
+  %}
+
+  ### High speed
+  ({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','distance')}}km):
+
+  [{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','url')}})
+
+  >
+  🗺️[{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','address')}},
+  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','postal_code')}}
+  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','longitude')}}&travelmode=driving)
+
+  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
+  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','number_of_connectors')}}
+  available
+
+  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','facilities')}}
+
+  {% endif %}
+
+
+
+  {% if
+  state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')
+  !=
+  state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')
+  and
+  state_attr('sensor.nearest_available_station_device_tracker_car_position','external_id')
+  !=
+  state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')%}
+
+  ### Super highspeed available
+  ({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','distance')}}km):
+
+  [{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','url')}})
+
+  >
+  🗺️[{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','address')}},
+  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','postal_code')}}
+  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','longitude')}}&travelmode=driving)
+
+  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
+  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','number_of_connectors')}}
+  available
+
+  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','facilities')}}
+
+  {% endif %}
+
+  {% if
+  state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','external_id')
+  !=
+  state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')
+  and
+  state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')!=
+  state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')
+  %}
+
+  ### Super highspeed
+  ({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','distance')}}km):
+
+  [{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','url')}})
+
+  >
+  🗺️[{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','address')}},
+  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','postal_code')}}
+  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','longitude')}}&travelmode=driving)
+
+  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
+  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','number_of_connectors')}}
+  available
+
+  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','facilities')}}
+
+  {% endif %}
+grid_options:
+  columns: full
+
+
+
+```
 
 # TODO, UNDER CONSTRUCTION
 ### Services / Actions
