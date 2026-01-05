@@ -34,7 +34,7 @@ With this integration it will be possible to:
    - **super high** speed charging station **nearest** to location
    - **super high** speed **available** charging station **nearest** to
 
-Optional also:
+Optional also (TODO):
    - **cheapest** charging stations and nearest to location
    - **available** **cheapest** charging stations and nearest to location
    - **high** speed charging station **cheapest** and nearest to location
@@ -64,9 +64,7 @@ Optional also:
 
 ### Setup screenshot
 
-![Carbu com setup config](https://github.com/myTselection/EVChargingStations/blob/629be913c9e8f06fdbcc55040880cb83ae2fe785/setup.png) 
-
-
+*  ![setup config](https://github.com/myTselection/EVChargingStations/blob/629be913c9e8f06fdbcc55040880cb83ae2fe785/setup.png) 
 
 
 
@@ -126,8 +124,164 @@ Optional also:
     
     </details>
     
+### Services / Actions
+* Find the EV Charging Station nearest to a given location and meeting specific criteria.
+   * ![Service find nearest](https://github.com/myTselection/EVChargingStations/blob/b5ee28f8f46687bad39e5207f400f77a8001bdc7/service_find_nearest.png)
+   * <details><summary>It will return a JSON such as example below:</summary>
 
-## Show map
+      ```
+      
+      nearest_station:
+        id: 7e71a916-d614-11f0-a74f-42010aa400b8
+        name: TNLP030017
+        address:
+          streetAndHouseNumber: De Ruijterkade 46
+          postcode: 1012 AB
+          city: Amsterdam
+          country: NL
+        ownerName: TotalEnergies
+        isAllowed: true
+        accessType: Public
+        isTwentyFourSeven: true
+        coordinates:
+          lat: 52.38066774
+          lng: 4.89748098
+        evseSummary:
+          total: 5
+          available: 4
+          maxSpeed: 120000
+          minSpeed: 43000
+          isUnlimited: true
+          isLimited: false
+          isUnknown: false
+        owner:
+          name: TotalEnergies
+          website: https://ubitricity.com/nl/bestuurder/
+        source: Eneco
+        evses:
+          - uid: NL-GFX-ETNLP030017-1
+            status: AVAILABLE
+            evseId: NL*GFX*ETNLP030017*1
+            lastUpdated: "2026-01-03T02:52:42+00:00"
+            physicalReference: TNLP030017
+            connectors:
+              - id: "1"
+                standard: IEC_62196_T2
+                format: SOCKET
+                powerType: AC_3_PHASE
+                maxPower: 43000
+            prices:
+              startTariff: 0.39
+              chargingCosts: 0.58
+              chargingTimeCosts: false
+              parkingTimeCosts: false
+              description: null
+          - uid: NL-GFX-ETNLP030017-2
+            status: AVAILABLE
+            evseId: NL*GFX*ETNLP030017*2
+            lastUpdated: "2026-01-03T20:10:11+00:00"
+            physicalReference: TNLP030017
+            connectors:
+              - id: "2"
+                standard: IEC_62196_T2_COMBO
+                format: CABLE
+                powerType: DC
+                maxPower: 50000
+            prices:
+              startTariff: 0.39
+              chargingCosts: 0.8
+              chargingTimeCosts: false
+              parkingTimeCosts: false
+              description: null
+          - uid: NL-GFX-ETNLP030017-3
+            status: AVAILABLE
+            evseId: NL*GFX*ETNLP030017*3
+            lastUpdated: "2026-01-03T11:03:27+00:00"
+            physicalReference: TNLP030017
+            connectors:
+              - id: "3"
+                standard: CHADEMO
+                format: CABLE
+                powerType: DC
+                maxPower: 50000
+            prices:
+              startTariff: 0.39
+              chargingCosts: 0.8
+              chargingTimeCosts: false
+              parkingTimeCosts: false
+              description: null
+          - uid: NL-GFX-ETNLP030018-1
+            status: CHARGING
+            evseId: NL*GFX*ETNLP030018*1
+            lastUpdated: "2026-01-03T20:59:06+00:00"
+            physicalReference: TNLP030018
+            connectors:
+              - id: "1"
+                standard: IEC_62196_T2_COMBO
+                format: CABLE
+                powerType: DC
+                maxPower: 120000
+            prices:
+              startTariff: 0.39
+              chargingCosts: 0.8
+              chargingTimeCosts: false
+              parkingTimeCosts: false
+              description: null
+          - uid: NL-GFX-ETNLP030018-2
+            status: AVAILABLE
+            evseId: NL*GFX*ETNLP030018*2
+            lastUpdated: "2026-01-03T20:32:52+00:00"
+            physicalReference: TNLP030018
+            connectors:
+              - id: "2"
+                standard: IEC_62196_T2_COMBO
+                format: CABLE
+                powerType: DC
+                maxPower: 120000
+            prices:
+              startTariff: 0.39
+              chargingCosts: 0.8
+              chargingTimeCosts: false
+              parkingTimeCosts: false
+              description: null
+        facilities:
+          - 14a (Public transport)
+          - 13a (Public transport)
+          - 11a (Public transport)
+          - 10a (Public transport)
+          - 8a (Public transport)
+        straight_line_distance: 0.97
+        url: >-
+          https://www.eneco-emobility.com/be-nl/chargemap#loc=52.38066774%2C4.89748098%2C17&selected=7e71a916-d614-11f0-a74f-42010aa400b8
+        route_distance: 1.29
+        route_duration: 4.28
+        route_name: Singel Amsterdam
+      ```
+
+</details>
+
+
+
+## Status
+Proof of concept status, still validating and extending functionalities. [Issues](https://github.com/myTselection/EVChargingStations/issues) section in GitHub.
+
+## Technical pointers
+The main logic and API connection related code can be found within source code Carbu.com/custom_components/Carbu.com:
+- [sensor.py](https://github.com/myTselection/EVChargingStations/blob/master/custom_components/EVChargingStations/sensor.py)
+- [coordinator.py](https://github.com/myTselection/EVChargingStations/blob/master/custom_components/EVChargingStations/coordinator.py)
+- [evrecharge.py EVApi](https://github.com/myTselection/EVChargingStations/blob/master/custom_components/EVChargingStations/evrecharge/__init__.py)
+
+All other files just contain boilerplat code for the integration to work wtihin HA or to have some constants/strings/translations.
+
+If you would encounter some issues with this custom component, you can enable extra debug logging by adding below into your `configuration.yaml`:
+```
+logger:
+  default: info
+  logs:
+     custom_components.evchargingstations: debug
+```
+
+## Example usage: Show map
 
 ### Nearest map
 
@@ -371,28 +525,3 @@ grid_options:
 
 ```
 
-# TODO, UNDER CONSTRUCTION
-### Services / Actions
-    
-    
-
-## Status
-Proof of concept status, still validating and extending functionalities. [Issues](https://github.com/myTselection/EVChargingStations/issues) section in GitHub.
-
-## Technical pointers
-The main logic and API connection related code can be found within source code Carbu.com/custom_components/Carbu.com:
-- [sensor.py](https://github.com/myTselection/EVChargingStations/blob/master/custom_components/EVChargingStations/sensor.py)
-- [coordinator.py](https://github.com/myTselection/EVChargingStations/blob/master/custom_components/EVChargingStations/coordinator.py)
-- [evrecharge.py EVApi](https://github.com/myTselection/EVChargingStations/blob/master/custom_components/EVChargingStations/evrecharge/__init__.py)
-
-All other files just contain boilerplat code for the integration to work wtihin HA or to have some constants/strings/translations.
-
-If you would encounter some issues with this custom component, you can enable extra debug logging by adding below into your `configuration.yaml`:
-```
-logger:
-  default: info
-  logs:
-     custom_components.EVChargingStations: debug
-```
-
-## Example usage:
