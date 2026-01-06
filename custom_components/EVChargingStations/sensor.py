@@ -373,7 +373,7 @@ class NearestSensor(
         """Read data from ev station."""
         self.station = self.getStationForType(self.coordinator.data, self.type)
         evse: EnecoEvse = self._get_evse()
-        _LOGGER.info(f"_read_coordinator_data: evse: {evse}, station: {self.station}")
+        _LOGGER.debug(f"_read_coordinator_data: evse: {evse}, station: {self.station}")
 
         try:
             if evse:

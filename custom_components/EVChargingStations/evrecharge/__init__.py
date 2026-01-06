@@ -381,7 +381,7 @@ class EVApi:
         json_response = None
         try:
             async with self.retry_client.get(url, headers=header) as response:
-                _LOGGER.info(f"response url {url}, status: {response.status}")
+                _LOGGER.debug(f"response url {url}, status: {response.status}")
                 if response.status == 200:
                     result = await response.json()
                     if result:
@@ -412,7 +412,7 @@ class EVApi:
         json_response = None
         try:
             async with self.retry_client.post(url, headers=header, json=payload) as response:
-                _LOGGER.info(f"response url {url}, status: {response.status}, payload: {payload}")
+                _LOGGER.debug(f"response url {url}, status: {response.status}, payload: {payload}")
                 if response.status == 200:
                     result = await response.json()
                     if result:
