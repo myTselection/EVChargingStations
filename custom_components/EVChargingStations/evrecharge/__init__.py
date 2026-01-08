@@ -191,7 +191,7 @@ class EVApi:
         loop = 1
         while someTypesMissing:
             if loop > 10:
-                _LOGGER.warning(f"No stations found in current radius, currRadius {currRadius}, loop {loop}, ending loop.")
+                _LOGGER.warning(f"No required stations found in current radius, currRadius {currRadius}, loop {loop}, standardSpeedFound: {standardSpeedFound}and highspeedFound {highspeedFound} and superHighSpeedFound {superHighSpeedFound}, onlyEnecoStations {onlyEnecoStations}, highspeedAvailableFound {highspeedAvailableFound} and standardAvailableSpeedFound {standardAvailableSpeedFound} and superHighSpeedAvailableFound {superHighSpeedAvailableFound}. Ending loop.")
                 break
             currRadius = _RADIUS * loop
             loop += 1
