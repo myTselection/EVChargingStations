@@ -331,7 +331,7 @@ async def enrichStationRouteDetails(station: EnecoChargingStation, origin_coordi
             real_time=realtime,
             alternatives=alternatives
         )
-        _LOGGER.info(f"enrichRouteDetails routes: {routes}")
+        _LOGGER.debug(f"enrichRouteDetails routes: {routes}")
         if len(routes) >= 1:
             route = routes[0]
             station.route_distance = round(route.distance,2) if route.distance else route.distance
