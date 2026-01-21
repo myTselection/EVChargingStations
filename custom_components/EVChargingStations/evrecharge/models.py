@@ -218,7 +218,7 @@ class EnecoChargingStation(BaseModel):
     isTwentyFourSeven: Optional[bool] = None
     coordinates: CoordinatesShortName
     evseSummary: EnecoEvseSummary
-    owner: Owner
+    owner: Optional[Owner] = None
     source: Optional[str] = None
     evses: List[EnecoEvse]
     facilities: List[str]

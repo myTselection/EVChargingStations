@@ -293,7 +293,7 @@ class NearestSensor(
         #     operator = self.station.ownerName
         # else:
         #     operator = self.station.owner.name
-        operator = self.station.name
+        operator = self.type_snake
         self._attr_device_info = DeviceInfo(
             name=self._attr_name,
             identifiers={(DOMAIN, self._attr_unique_id)},
@@ -377,12 +377,14 @@ class NearestSensor(
 
         try:
             if evse:
+                self._attr_name = self.station.name
                 self._attr_native_value = evse.status
                 self._attr_icon = self._choose_icon(evse.connectors)
                 connector: EnecoConnector = evse.connectors[0]
                 extra_data = {
                     "name": self.station.name,
                     "type": self.type.value,
+                    "origin": self.origin,
                     "address": self.station.address.streetAndHouseNumber,
                     "city": self.station.address.city,
                     "postal_code": self.station.address.postcode,
