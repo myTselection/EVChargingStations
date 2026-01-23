@@ -176,6 +176,7 @@ async def async_find_nearest(
 
     resolved_origin = find_coordinates(hass,origin)
     origin_coordinates = await routeCalculatorClient._ensure_coords(resolved_origin)
+    _LOGGER.debug(f"EVCS coordinator find origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {origin}")
     nearestChargingStations:NearestChargingStations = await evapi.nearby_stations(origin, origin_coordinates, only_eneco)
 
     station = None

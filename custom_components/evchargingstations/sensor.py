@@ -377,7 +377,7 @@ class NearestSensor(
 
         try:
             if evse:
-                self._attr_name = self.station.name
+                # self._attr_name = self.station.name
                 self._attr_native_value = evse.status
                 self._attr_icon = self._choose_icon(evse.connectors)
                 connector: EnecoConnector = evse.connectors[0]

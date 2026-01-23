@@ -20,7 +20,7 @@ from .user import User
 import logging
 
 _LOGGER = logging.getLogger(__name__)
-_RADIUS = 500
+_RADIUS = 100
 
 class EVApi:
     """Class to make API requests."""
@@ -190,7 +190,7 @@ class EVApi:
         superHighSpeedAvailableFound = False
         loop = 1
         while someTypesMissing:
-            if loop > 10:
+            if loop > 15:
                 _LOGGER.warning(f"No required stations found in current radius, currRadius {currRadius}, loop {loop}, standardSpeedFound: {standardSpeedFound}and highspeedFound {highspeedFound} and superHighSpeedFound {superHighSpeedFound}, onlyEnecoStations {onlyEnecoStations}, highspeedAvailableFound {highspeedAvailableFound} and standardAvailableSpeedFound {standardAvailableSpeedFound} and superHighSpeedAvailableFound {superHighSpeedAvailableFound}. Ending loop.")
                 break
             currRadius = _RADIUS * loop
