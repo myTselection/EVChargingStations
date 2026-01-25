@@ -27,14 +27,14 @@ For electricity price expectations [this Entso-E HACS integration](https://githu
 With this integration it will be possible to:
 - subscribe to specific charging point, to make it possible to get notified once available
 - get sensors (can be shown on map) with:
-   - charging station **nearest** to location
+   - charging station **nearest** to location (straight line distance)
    - **available** charging station **nearest** to location
    - **high** speed charging station **nearest** to location
    - **high** speed **available** charging station **nearest** to location
    - **super high** speed charging station **nearest** to location
    - **super high** speed **available** charging station **nearest** to
 
-Optional also (TODO):
+TODO : find cheapest charging station:
    - **cheapest** charging stations and nearest to location
    - **available** **cheapest** charging stations and nearest to location
    - **high** speed charging station **cheapest** and nearest to location
@@ -56,9 +56,6 @@ Optional also (TODO):
    - Provide the unique serial number of the charging station: the serial number can be found in the details of a charging station on [https://ui-map.shellrecharge.com](https://ui-map.shellrecharge.com)
 - For 'Private Shell charge station':
    - Provide Shell credentials username and password
-- TODO: After setting up the integration, the configuration can be updated using the 'Configure' button of the integration. The usage of a station filter can be enabled and set, the usage of a template to set the 'friendly name' of each sensor type can be enabled and set and the usage of icons with price indication can be enabled or disabled.
-  - The checkboxes are required since else clearing the text of the configuration was not recorded (HA bug?) and filter or templates could no longer be removed once set.
-  - When setting a sensor 'friendly name' template, any sensor attribute can be used as a placeholder which will be replaced with the actual value. Eg: `Price {fueltype} {fuelname} {supplier}` could be used as a template for the Price sensor. All available attributes can be fetched using the 'Developer Tools' > 'States' > 'Attributes' view in HA or using the tables listed below.
 
 
 
@@ -84,6 +81,7 @@ Optional also (TODO):
     | State     | **Status** |
     | `name`    | Name of the charging station, ofter referring to the location |
     | `type`    | Type of the charging station, eg nearest_available_superhighspeed_station |
+    | `origin`  | Original origin provided during setup of the sensor to find nearest station |
     | `address`  | Address of the charging station |
     | `postal_code`  | Postal code of the charging station |
     | `city`  | City of the charging station |
@@ -361,19 +359,37 @@ A link towards Eneco chargemap is available on the name of the charging stations
 
 A link to Google maps directions from car to charging station is available on the address of the charging station
 
+An indication of exepcted speed of charging (km/min and km/hour of charging)
+
 To re-use, replace 
 - `device_tracker_car_position` with origin used during setup of EVChargingStation
 - `device_tracker.car_position` with entity id or sensor name of your car (or similar)
+- `sensor.car_soc` with entity id of car battery charge status % SoC
 
 ```
 
 type: markdown
 content: >-
+  {% set soc = states('sensor.car_soc') | float %}
+  {% set consumption = 19 | float %} {# Car average kW consumption per 100km #}
+  {% if soc < 10 %}
+    {% set factor = 0.7 %}
+  {% elif soc < 40 %}
+    {% set factor = 1.0 %}
+  {% elif soc < 60 %}
+    {% set factor = 0.8 %}
+  {% elif soc < 80 %}
+    {% set factor = 0.5 %}
+  {% else %}
+    {% set factor = 0.2 %}
+  {% endif %}
+
   # Charging stations close to car
 
 
 
   ### Nearest available
+  {% set max_power_kw = state_attr('sensor.nearest_available_station_device_tracker_car_position','connector_max_power') | float %}
   ({{state_attr('sensor.nearest_available_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_available_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_station_device_tracker_car_position','url')}})
@@ -385,7 +401,9 @@ content: >-
 
   {{state_attr('sensor.nearest_available_station_device_tracker_car_position','connector_max_power')}}kWh,
   {{state_attr('sensor.nearest_available_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_station_device_tracker_car_position','number_of_connectors')}}
-  available
+  available 
+
+  {% if consumption > 0 %}{{(((max_power_kw ) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw )) * (100 / consumption))| round(0)}} km/hour{% endif %}
 
   {{state_attr('sensor.nearest_available_station_device_tracker_car_position','facilities')}}
 
@@ -397,6 +415,7 @@ content: >-
   %}
 
   ### Nearest 
+  {% set max_power_kw = state_attr('sensor.nearest_station_device_tracker_car_position','connector_max_power') | float %}
   ({{state_attr('sensor.nearest_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_station_device_tracker_car_position','url')}})
@@ -408,7 +427,9 @@ content: >-
 
   {{state_attr('sensor.nearest_station_device_tracker_car_position','connector_max_power')}}kWh,
   {{state_attr('sensor.nearest_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_station_device_tracker_car_position','number_of_connectors')}}
-  beschikbaar
+  available
+  
+  {% if consumption > 0 %}{{(((max_power_kw ) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw )) * (100 / consumption))| round(0)}} km/hour{% endif %}
 
   {{state_attr('sensor.nearest_station_device_tracker_car_position','facilities')}}
 
@@ -422,6 +443,7 @@ content: >-
   state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')%}
 
   ### High speed available
+  {% set max_power_kw = state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','connector_max_power') | float %}
   ({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','url')}})
@@ -435,6 +457,8 @@ content: >-
   {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','number_of_connectors')}}
   available
 
+  {% if consumption > 0 %}{{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}} km/hour{% endif %}
+
   {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','facilities')}}
 
   {% endif %}
@@ -446,6 +470,7 @@ content: >-
   %}
 
   ### High speed
+  {% set max_power_kw = state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','connector_max_power') | float %}
   ({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','url')}})
@@ -458,6 +483,8 @@ content: >-
   {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
   {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','number_of_connectors')}}
   available
+
+  {% if consumption > 0 %}{{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}} km/hour{% endif %}
 
   {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','facilities')}}
 
@@ -475,6 +502,7 @@ content: >-
   state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')%}
 
   ### Super highspeed available
+  {% set max_power_kw = state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','connector_max_power') | float %}
   ({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','url')}})
@@ -487,6 +515,8 @@ content: >-
   {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
   {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','number_of_connectors')}}
   available
+
+  {% if consumption > 0 %}{{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}} km/hour{% endif %}
 
   {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','facilities')}}
 
@@ -502,6 +532,7 @@ content: >-
   %}
 
   ### Super highspeed
+  {% set max_power_kw = state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','connector_max_power') | float %}
   ({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','route_duration')}}min):
 
   [{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','url')}})
@@ -514,6 +545,8 @@ content: >-
   {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
   {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','number_of_connectors')}}
   available
+
+  {% if consumption > 0 %}{{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}} km/hour{% endif %}
 
   {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','facilities')}}
 
