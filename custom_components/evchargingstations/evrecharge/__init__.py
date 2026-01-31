@@ -21,6 +21,7 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 _RADIUS = 100
+_MAX_RADIUS_EXTENSION_LOOPS = 200 # maximum loops to extend search radius, 20 * 100m = 20km
 
 class EVApi:
     """Class to make API requests."""
@@ -190,7 +191,7 @@ class EVApi:
         superHighSpeedAvailableFound = False
         loop = 1
         while someTypesMissing:
-            if loop > 15:
+            if loop > _MAX_RADIUS_EXTENSION_LOOPS:
                 _LOGGER.warning(f"No required stations found in current radius, currRadius {currRadius}, loop {loop}, standardSpeedFound: {standardSpeedFound}and highspeedFound {highspeedFound} and superHighSpeedFound {superHighSpeedFound}, onlyEnecoStations {onlyEnecoStations}, highspeedAvailableFound {highspeedAvailableFound} and standardAvailableSpeedFound {standardAvailableSpeedFound} and superHighSpeedAvailableFound {superHighSpeedAvailableFound}. Ending loop.")
                 break
             currRadius = _RADIUS * loop
@@ -199,9 +200,11 @@ class EVApi:
             origin_coordinates['bounds'] = boundingbox
             # _LOGGER.debug(f"boundingbox: {boundingbox}, coordinates: {origin_coordinates}, radius: {currRadius}")
 
-            deault_payload = self.defaultEnecoPayload(origin_coordinates)
+            default_payload = self.defaultEnecoPayload(origin_coordinates)
+            default_payload['filters']['fastCharging'] = True if standardSpeedFound else False
+            default_payload['filters']['ultraFastCharging'] = True if highspeedFound else False
             try:
-                totalEves = await self.countChargingStationsPayload(deault_payload)
+                totalEves = await self.countChargingStationsPayload(default_payload)
             except Exception as e:
                 _LOGGER.debug(f"No stations found in current radius. Eneco countChargingStationsPayload, currRadius {currRadius}, exception: {e}")
                 continue
@@ -210,7 +213,7 @@ class EVApi:
                 continue
             eneco_url_polygon = "https://www.eneco-emobility.com/api/chargemap/search-polygon"
             payload = {
-                "bounds": deault_payload.get('bounds'),
+                "bounds": default_payload.get('bounds'),
                 "filters": {
                     "availableNow": True if standardSpeedFound and highspeedFound and superHighSpeedFound else False, 
                     "isAllowed": onlyEnecoStations, 
