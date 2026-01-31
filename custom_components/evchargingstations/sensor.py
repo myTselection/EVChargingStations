@@ -284,7 +284,8 @@ class NearestSensor(
         # self._attr_name = self.station.name
         self._attr_name = f"{self.type_snake} {self.origin}"
         self._attr_has_entity_name = False
-        self._attr_unique_id = f"{self.type_snake} {self.origin}"
+        self._device_unique_id = f"{self.type_snake} {self.origin}"
+        self._attr_unique_id = f"{self._device_unique_id}"
         self._attr_attribution = "eneco-emobility.com"
         self._attr_device_class = SensorDeviceClass.ENUM
         self._attr_native_unit_of_measurement = None
@@ -295,8 +296,8 @@ class NearestSensor(
         #     operator = self.station.owner.name
         operator = self.type_snake
         self._attr_device_info = DeviceInfo(
-            name=self._attr_name,
-            identifiers={(DOMAIN, self._attr_unique_id)},
+            name=self._device_unique_id,
+            identifiers={(DOMAIN, self._device_unique_id)},
             entry_type=None,
             manufacturer=operator,
         )
