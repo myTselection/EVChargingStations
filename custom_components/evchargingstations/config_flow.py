@@ -84,7 +84,7 @@ class EVRechargeFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors: dict[str, str] = {}
         if user_input is None:
-            return self.async_show_form(step_id="user", data_schema=RECHARGE_SCHEMA)
+            return self.async_show_form(step_id="user", data_schema=RECHARGE_SCHEMA, errors=errors, description_placeholders={"ui_map_url": "https://ui-map.shellrecharge.com/"})
 
         try:
             # source = user_input.get(CONF_SOURCE)
@@ -120,7 +120,7 @@ class EVRechargeFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 errors["base"] = "missing_data"
                 return self.async_show_form(
-                    step_id="user", data_schema=RECHARGE_SCHEMA, errors=errors
+                    step_id="user", data_schema=RECHARGE_SCHEMA, errors=errors, description_placeholders={"ui_map_url": "https://ui-map.shellrecharge.com/"}
                 )
         except LoginFailedError:
             errors["base"] = "login_failed"

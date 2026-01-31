@@ -21,23 +21,23 @@
               "email": "Shell Recharge account e-mail address",
               "password": "Shell Recharge account password"
             },
-            "name": "Private Shell charge station"
+            "name": "Private Shell charging station"
           },
           "single": {
             "data": {
-              "serial_number": "Shell SERIAL-NUMBER (e.g. 0F80EA26-5F5D-4728-B5E5-268BE55B9191) found on https://ui-map.shellrecharge.com/"
+              "serial_number": "Shell SERIAL-NUMBER (e.g. 0F80EA26-5F5D-4728-B5E5-268BE55B9191) found on {ui_map_url}"
             },
-            "name": "Public single Shell charge station"
+            "name": "Public single Shell charging station"
           },
           "public": {
             "data": {
               "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country",
               "only_eneco": "Only show Eneco card supported stations"
             },
-            "name": "Public nearest charge startions"
+            "name": "Public nearest charging stations"
           }
         },
-        "title": "Setup charge stations"
+        "title": "Setup charging stations"
       }
     }
   },
