@@ -276,7 +276,7 @@ If you would encounter some issues with this custom component, you can enable ex
 logger:
   default: info
   logs:
-     custom_components.evchargingstations: debug
+     custom_components.EVChargingStations: debug
 ```
 
 ## Example usage: Show map
