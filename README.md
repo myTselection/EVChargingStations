@@ -365,194 +365,141 @@ To re-use, replace
 - `device_tracker_car_position` with origin used during setup of EVChargingStation
 - `device_tracker.car_position` with entity id or sensor name of your car (or similar)
 - `sensor.car_soc` with entity id of car battery charge status % SoC
+- `person.jef` with entity id of person
 
 ```
 
 type: markdown
 content: >-
-  {% set soc = states('sensor.car_soc') | float %}
-  {% set consumption = 19 | float %} {# Car average kW consumption per 100km #}
-  {% if soc < 10 %}
-    {% set factor = 0.7 %}
-  {% elif soc < 40 %}
-    {% set factor = 1.0 %}
-  {% elif soc < 60 %}
-    {% set factor = 0.8 %}
-  {% elif soc < 80 %}
-    {% set factor = 0.5 %}
-  {% else %}
-    {% set factor = 0.2 %}
-  {% endif %}
+  {% set soc = states('sensor.car_soc') | float(0) %}   
+  {% set capacity = states('sensor.car_battery_kwh') | float(83) %}   
+  {% set now_ts = now().timestamp() %}  
+  {% set consumption = 19 | float %}   
+  {% if soc < 10 %}  {% set factor = 0.7 %} 
+  {% elif soc < 40 %} {% set factor = 1.0 %}
+  {% elif soc < 60 %} {% set factor = 0.8 %}
+  {% elif soc < 80 %} {% set factor = 0.5 %}
+  {% else %} {% set factor = 0.2 %}
+  {% endif %} 
 
-  # Charging stations close to car
+  {% macro calcTime(target, max_power_kw) %} 
+  {% set taper_factor = 0.6 %} 
+  {% if max_power_kw < 50 %} 
+  {% set effective_power = 11.0 %} 
+  {% else %} 
+  {% set effective_power = max_power_kw %} 
+  {% endif %} 
+  {% if soc >= target %} Reeds ≥ {{ target }}% 
+  {% else %} 
+  {# Part 1: from current SOC to min(target,80) at full speed #} 
+  {%- set first_limit = [target, 80] | min -%} 
+  {%- set pct1 = (first_limit - soc) / 100 if soc < first_limit else 0 -%} 
+  {%- set energy1 = capacity * pct1 -%} 
+  {%- set time1 = energy1 / effective_power if effective_power > 0 else 0 -%}
 
+  {# Part 2: above 80% at reduced speed #} 
+  {%- if target > 80 and soc < target -%} 
+  {%- set pct2 = (target - 80) / 100 if soc < 80 else (target - soc) / 100 -%} 
+  {%- set energy2 = capacity * pct2 -%} 
+  {%- set time2 = energy2 / (effective_power * taper_factor) -%} 
+  {%- else -%} {%- set time2 = 0 -%} 
+  {%- endif -%}
 
+  {%- set total_h = time1 + time2 -%} 
+  {%- set hours = total_h | int -%} 
+  {%- set minutes = ((total_h - hours) * 60) | round(0) -%} 
+  {%- if minutes >= 60 -%} 
+  {%- set hours = hours + (minutes // 60) -%} 
+  {%- set minutes = minutes % 60 -%} 
+  {%- endif -%} 
+  {%- set completion_ts = (now_ts + total_h * 3600) | int -%} till {{target}}%: {{ hours }}h {{ '%02d' % minutes }}m → {{ completion_ts | timestamp_custom('%a %H:%M', true) }}, auto currently at {{soc}}% till max {{capacity}}kWh at {{effective_power}}kWh 
+  {% endif %} 
+  {% endmacro %}
 
-  ### Nearest available
-  {% set max_power_kw = state_attr('sensor.nearest_available_station_device_tracker_car_position','connector_max_power') | float %}
-  ({{state_attr('sensor.nearest_available_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_station_device_tracker_car_position','route_duration')}}min):
+  {% macro calcSpeed(target, max_power_kw) %} 
+  {% if consumption > 0 %} 
+  {{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}}km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}}km/h
+  {% endif %} 
+  {% endmacro %}
 
-  [{{state_attr('sensor.nearest_available_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_station_device_tracker_car_position','url')}})
+  {% macro generateOverview(sensor) %} 
+  {% set max_power_kw = state_attr(sensor,'connector_max_power') | float %}
+  ({{state_attr(sensor,'route_distance')}}km,
+  {{state_attr(sensor,'route_duration')}}min):
 
-  >
-  🗺️[{{state_attr('sensor.nearest_available_station_device_tracker_car_position','address')}},
-  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','postal_code')}}
-  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_available_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_available_station_device_tracker_car_position','longitude')}}&travelmode=driving)
+  [{{state_attr(sensor,'name')}}]({{state_attr(sensor,'url')}})
 
-  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','connector_max_power')}}kWh,
-  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_station_device_tracker_car_position','number_of_connectors')}}
+  > 🗺️[{{state_attr(sensor,'address')}}, {{state_attr(sensor,'postal_code')}}
+  {{state_attr(sensor,'city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('person.jef','latitude')}},{{state_attr('person.jef','longitude')}}&destination={{state_attr(sensor,'latitude')}},{{state_attr(sensor,'longitude')}}&travelmode=driving)
+
+  {{state_attr(sensor,'connector_max_power')}}kWh,
+  {{state_attr(sensor,'available_connectors')}}/{{state_attr(sensor,'number_of_connectors')}}
   available 
 
-  {% if consumption > 0 %}{{(((max_power_kw ) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw )) * (100 / consumption))| round(0)}} km/hour{% endif %}
+  {{ calcSpeed(80, max_power_kw) }} 
 
-  {{state_attr('sensor.nearest_available_station_device_tracker_car_position','facilities')}}
+  {{ calcTime(80, max_power_kw) }} 
+
+  {{ calcTime(100, max_power_kw) }}
+
+  {{state_attr(sensor,'facilities')}} 
+  {% endmacro %}
+
+  # Charging stations around person.jef
 
 
-  {% if
-  state_attr('sensor.nearest_station_device_tracker_car_position','external_id')
-  !=
-  state_attr('sensor.nearest_available_station_device_tracker_car_position','external_id')
-  %}
+  ### Nearest available      
+  {{ generateOverview('sensor.nearest_available_station_person_jef') }}
 
-  ### Nearest 
-  {% set max_power_kw = state_attr('sensor.nearest_station_device_tracker_car_position','connector_max_power') | float %}
-  ({{state_attr('sensor.nearest_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_station_device_tracker_car_position','route_duration')}}min):
 
-  [{{state_attr('sensor.nearest_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_station_device_tracker_car_position','url')}})
+  {% if state_attr('sensor.nearest_station_person_jef','external_id') !=
+  state_attr('sensor.nearest_available_station_person_jef','external_id') %}
 
-  >
-  🗺️[{{state_attr('sensor.nearest_station_device_tracker_car_position','address')}},
-  {{state_attr('sensor.nearest_station_device_tracker_car_position','postal_code')}}
-  {{state_attr('sensor.nearest_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_station_device_tracker_car_position','longitude')}}&travelmode=driving)
-
-  {{state_attr('sensor.nearest_station_device_tracker_car_position','connector_max_power')}}kWh,
-  {{state_attr('sensor.nearest_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_station_device_tracker_car_position','number_of_connectors')}}
-  available
-  
-  {% if consumption > 0 %}{{(((max_power_kw ) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw )) * (100 / consumption))| round(0)}} km/hour{% endif %}
-
-  {{state_attr('sensor.nearest_station_device_tracker_car_position','facilities')}}
+  ### Nearest  
+  {{ generateOverview('sensor.nearest_station_person_jef') }}
 
   {% endif %}
 
 
 
-  {% if
-  state_attr('sensor.nearest_available_station_device_tracker_car_position','external_id')
-  !=
-  state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')%}
+  {% if state_attr('sensor.nearest_available_station_person_jef','external_id') != state_attr('sensor.nearest_available_highspeed_station_person_jef','external_id') %}
 
-  ### High speed available
-  {% set max_power_kw = state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','connector_max_power') | float %}
-  ({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','route_duration')}}min):
-
-  [{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','url')}})
-
-  >
-  🗺️[{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','address')}},
-  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','postal_code')}}
-  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','longitude')}}&travelmode=driving)
-
-  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
-  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','number_of_connectors')}}
-  available
-
-  {% if consumption > 0 %}{{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}} km/hour{% endif %}
-
-  {{state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','facilities')}}
+  ### Highspeed nearest available  {{
+  generateOverview('sensor.nearest_available_highspeed_station_person_jef') }}
 
   {% endif %}
 
-  {% if
-  state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','external_id')
-  !=
-  state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')
-  %}
+  {% if state_attr('sensor.nearest_highspeed_station_person_jef','external_id') != state_attr('sensor.nearest_available_highspeed_station_person_jef','external_id') %}
 
-  ### High speed
-  {% set max_power_kw = state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','connector_max_power') | float %}
-  ({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','route_duration')}}min):
-
-  [{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','url')}})
-
-  >
-  🗺️[{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','address')}},
-  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','postal_code')}}
-  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','longitude')}}&travelmode=driving)
-
-  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
-  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','number_of_connectors')}}
-  available
-
-  {% if consumption > 0 %}{{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}} km/hour{% endif %}
-
-  {{state_attr('sensor.nearest_highspeed_station_device_tracker_car_position','facilities')}}
-
+  ### Highspeed
+  {{ generateOverview('sensor.nearest_highspeed_station_person_jef')}} 
   {% endif %}
 
 
 
-  {% if
-  state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')
-  !=
-  state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')
+  {% if state_attr('sensor.nearest_available_superhighspeed_station_person_jef','external_id') != state_attr('sensor.nearest_available_highspeed_station_person_jef','external_id')
+  and state_attr('sensor.nearest_available_station_person_jef','external_id') !=
+  state_attr('sensor.nearest_available_superhighspeed_station_person_jef','external_id')%}
+
+  ### Super highspeed available  
+  {{ generateOverview('sensor.nearest_available_superhighspeed_station_person_jef') }}
+
+  {% endif %}
+
+  {% if state_attr('sensor.nearest_superhighspeed_station_person_jef','external_id') !=
+  state_attr('sensor.nearest_available_superhighspeed_station_person_jef','external_id')
   and
-  state_attr('sensor.nearest_available_station_device_tracker_car_position','external_id')
-  !=
-  state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')%}
-
-  ### Super highspeed available
-  {% set max_power_kw = state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','connector_max_power') | float %}
-  ({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','route_duration')}}min):
-
-  [{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','url')}})
-
-  >
-  🗺️[{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','address')}},
-  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','postal_code')}}
-  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','longitude')}}&travelmode=driving)
-
-  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
-  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','number_of_connectors')}}
-  available
-
-  {% if consumption > 0 %}{{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}} km/hour{% endif %}
-
-  {{state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','facilities')}}
-
-  {% endif %}
-
-  {% if
-  state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','external_id')
-  !=
-  state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')
-  and
-  state_attr('sensor.nearest_available_superhighspeed_station_device_tracker_car_position','external_id')!=
-  state_attr('sensor.nearest_available_highspeed_station_device_tracker_car_position','external_id')
+  state_attr('sensor.nearest_available_superhighspeed_station_person_jef','external_id')!=
+  state_attr('sensor.nearest_available_highspeed_station_person_jef','external_id')
   %}
 
   ### Super highspeed
-  {% set max_power_kw = state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','connector_max_power') | float %}
-  ({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','route_distance')}}km, {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','route_duration')}}min):
-
-  [{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','name')}}]({{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','url')}})
-
-  >
-  🗺️[{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','address')}},
-  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','postal_code')}}
-  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','city')}}](https://www.google.com/maps/dir/?api=1&origin={{state_attr('device_tracker.car_position','latitude')}},{{state_attr('device_tracker.car_position','longitude')}}&destination={{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','latitude')}},{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','longitude')}}&travelmode=driving)
-
-  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','connector_max_power')}}kWh,
-  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','available_connectors')}}/{{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','number_of_connectors')}}
-  available
-
-  {% if consumption > 0 %}{{(((max_power_kw * factor) / 60) * (100 / consumption))| round(1)}} km/min, {{(((max_power_kw * factor)) * (100 / consumption))| round(0)}} km/hour{% endif %}
-
-  {{state_attr('sensor.nearest_superhighspeed_station_device_tracker_car_position','facilities')}}
+  {{ generateOverview('sensor.nearest_superhighspeed_station_person_jef') }}
 
   {% endif %}
 grid_options:
   columns: full
+
 
 
 
