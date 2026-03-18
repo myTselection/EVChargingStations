@@ -27,7 +27,7 @@ from pywaze.route_calculator import WazeRouteCalculator
 from .const import DOMAIN, CONF_ORIGIN, CONF_API_KEY, CONF_PASSWORD, CONF_EMAIL, CONF_SERIAL_NUMBER, CONF_SHELL, CONF_PUBLIC, CONF_SINGLE, UPDATE_INTERVAL, CONF_ONLY_ENECO, CONF_SOURCE, CONF_SOURCE_ENCECO, CONF_SOURCE_SHELL
 import logging
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(DOMAIN)
 
 RECHARGE_SCHEMA = vol.Schema(
     {

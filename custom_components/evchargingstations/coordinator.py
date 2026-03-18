@@ -19,7 +19,7 @@ from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator, WRC
 
 from .const import DOMAIN, UPDATE_INTERVAL, SerialNumber,CONF_ORIGIN, CONF_API_KEY, CONF_PASSWORD, CONF_EMAIL, CONF_SERIAL_NUMBER, CONF_SINGLE, CONF_PUBLIC, CONF_ONLY_ENECO, StationSensorType
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(DOMAIN)
 SECONDS_BETWEEN_API_CALLS = 0.5
 
 class EVRechargeUserDataUpdateCoordinator(DataUpdateCoordinator[DetailedAssets]):

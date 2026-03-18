@@ -28,7 +28,7 @@ from . import (
 )
 from .const import DOMAIN, EvseId, EVRechargeEntityFeature, StationSensorType
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(DOMAIN)
 
 
 async def async_setup_entry(

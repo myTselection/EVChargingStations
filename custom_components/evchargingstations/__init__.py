@@ -38,7 +38,7 @@ from homeassistant.helpers.selector import (
     NumberSelector,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(DOMAIN)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 SERVICE_FIND_NEAREST = "find_nearest"
